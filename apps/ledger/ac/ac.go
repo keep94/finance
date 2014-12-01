@@ -1,0 +1,38 @@
+package ac
+
+import (
+  "encoding/json"
+  "github.com/keep94/appcommon/http_util"
+  "github.com/keep94/finance/fin"
+  "github.com/keep94/finance/fin/aggregators"
+  "github.com/keep94/finance/fin/consumers"
+  "github.com/keep94/finance/fin/findb"
+  "github.com/keep94/gofunctional3/functional"
+  "net/http"
+)
+
+const (
+  kMaxAutoComplete = 1000
+)
+
+type Handler struct {
+  Store findb.EntriesRunner
+  Field func(e *fin.Entry) string
+}
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  aca := &aggregators.AutoCompleteAggregator{Field: h.Field}
+  acc := consumers.FromEntryAggregator(aca)
+  acc = functional.ModifyConsumer(
+      acc,
+      func(s functional.Stream) functional.Stream {
+        return functional.Slice(s, 0, kMaxAutoComplete)
+      })
+  err := h.Store.Entries(nil, nil, acc)
+  if err != nil {
+    http_util.ReportError(w, "Error reading database.", err)
+    return
+  }
+  encoder := json.NewEncoder(w)
+  encoder.Encode(aca.Items)
+}
