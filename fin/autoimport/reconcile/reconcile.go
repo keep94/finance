@@ -3,11 +3,17 @@
 package reconcile
 
 import (
+  "github.com/keep94/appcommon/date_util"
   "github.com/keep94/finance/fin"
+  "github.com/keep94/finance/fin/autoimport/reconcile/match"
   "github.com/keep94/finance/fin/findb"
   "github.com/keep94/gofunctional3/functional"
   "sort"
   "time"
+)
+
+var (
+  kY2k = date_util.YMD(2000, 1, 1)
 )
 
 // AmountCheckNo is a key consisting of amount and check number. To be
@@ -20,9 +26,14 @@ type AmountCheckNo struct {
 // The entries organized by amount and check number. Under each key, the
 // entries are sorted by date in descending order. An empty instance of
 // this type can be used as an aggregator. See the aggregators package.
+// Note that methods of this type change the Id field of the fin.Entry
+// values in place through the pointers.
 type ByAmountCheckNo map[AmountCheckNo][]*fin.Entry
 
 // New creates a new ByAmountCheckNo from existing entries.
+// Note that the returned instance has methods that change the Id field
+// of the fin.Entry structures of entries in place through the pointers
+// as no defensive copying is done.
 func New(entries []*fin.Entry) ByAmountCheckNo {
   sortedEntries := make([]*fin.Entry, len(entries))
   copy(sortedEntries, entries)
@@ -47,11 +58,18 @@ func (b ByAmountCheckNo) Include(e *fin.Entry) {
 // to zero. maxDays is the maximum days allowed between entries reconciled
 // together that lack a check number.
 func (b ByAmountCheckNo) Reconcile(unreconciled ByAmountCheckNo, maxDays int) {
+  var bankIntArray []int
+  var unrecIntArray []int
+  var matchesIntArray []int
   for k, v := range b {
     if k.CheckNo != "" {
-      reconcile(v, unreconciled[k], -1)
+      reconcile(
+          v, unreconciled[k], -1,
+          &bankIntArray, &unrecIntArray, &matchesIntArray)
     } else {
-      reconcile(v, unreconciled[k], maxDays)
+      reconcile(
+          v, unreconciled[k], maxDays,
+          &bankIntArray, &unrecIntArray, &matchesIntArray)
     }
   }
 }
@@ -118,57 +136,45 @@ func (f filterer) Filter(ptr interface{}) error {
   return nil
 }
 
-func reconcile(bank, unreconciled []*fin.Entry, maxDays int) {
-  for _, v := range bank {
-    v.Id = 0
-  }
-  bankIdx := 0
-  unrecIdx := 0
-  for bankIdx < len(bank) && unrecIdx < len(unreconciled) {
-    if bank[bankIdx].Date.Before(unreconciled[unrecIdx].Date) {
-      unrecIdx++
-    } else if maxDays < 0 || dayDiff(bank[bankIdx].Date, unreconciled[unrecIdx].Date) <= maxDays {
-      bank[bankIdx].Id = int64(unrecIdx + 1)
-      bankIdx++
-      unrecIdx++
-    } else {
-      bankIdx++
-    }
-  }
-  bankIdx = len(bank) - 1
-  unrecIdx = len(unreconciled) - 1
-  for bankIdx >= 0 && unrecIdx >= 0 {
-    if bank[bankIdx].Id != 0 {
-      if bank[bankIdx].Id <= int64(unrecIdx + 1) {
-        unrecIdx = int(bank[bankIdx].Id - 2)
-        bankIdx--
-        continue
-      } else {
-        bank[bankIdx].Id = 0
-      }
-    }
-    if bank[bankIdx].Date.Before(unreconciled[unrecIdx].Date) {
-      bankIdx--
-    } else if maxDays < 0 || dayDiff(bank[bankIdx].Date, unreconciled[unrecIdx].Date) <= maxDays {
-      bank[bankIdx].Id = int64(unrecIdx + 1)
-      bankIdx--
-      unrecIdx--
-    } else {
-      unrecIdx--
-    }
-  }
-  for ;bankIdx >= 0; bankIdx-- {
-    if bank[bankIdx].Id != 0 {
-      bank[bankIdx].Id = 0
-    }
-  }
-  for _, v := range bank {
-    if v.Id != 0 {
-      v.Id = unreconciled[v.Id -1].Id
-    }
-  }
+func reconcile(
+    bank, unreconciled []*fin.Entry, maxDays int,
+    bankIntArray, unrecIntArray, matchesIntArray *[]int) {
+  bankDates := toAscendingIntArray(bank, bankIntArray)
+  unrecDates := toAscendingIntArray(unreconciled, unrecIntArray)
+  // maxDays is exclusive in match package
+  matches := match.Match(
+      bankDates, unrecDates, maxDays + 1, matchesIntArray)
+  pairBankEntries(bank, unreconciled, matches)
 }
 
 func dayDiff(end, start time.Time) int {
   return int(end.Sub(start) / (24 * time.Hour))
+}
+
+func toAscendingIntArray(
+    entriesByDateDesc []*fin.Entry, buffer *[]int) []int {
+  if len(entriesByDateDesc) > len(*buffer) {
+    *buffer = make([]int, len(entriesByDateDesc))
+  }
+  result := (*buffer)[:len(entriesByDateDesc)]
+  revIdx := len(entriesByDateDesc) - 1
+  for _, entry := range entriesByDateDesc {
+    result[revIdx] = dayDiff(entry.Date, kY2k)
+    revIdx--
+  }
+  return result
+}
+
+func pairBankEntries(bank, unreconciled []*fin.Entry, matches []int) {
+  revIdx := len(matches) - 1
+  unrecLen := len(unreconciled) - 1
+  for _, entry := range bank {
+    match := matches[revIdx]
+    revIdx--
+    if match == -1 {
+      entry.Id = 0
+    } else {
+      entry.Id = unreconciled[unrecLen - match].Id
+    }
+  }
 }
