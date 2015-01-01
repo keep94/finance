@@ -167,14 +167,14 @@ func toAscendingIntArray(
 
 func pairBankEntries(bank, unreconciled []*fin.Entry, matches []int) {
   revIdx := len(matches) - 1
-  unrecLen := len(unreconciled) - 1
+  unrecLen := len(unreconciled)
   for _, entry := range bank {
     match := matches[revIdx]
     revIdx--
     if match == -1 {
       entry.Id = 0
     } else {
-      entry.Id = unreconciled[unrecLen - match].Id
+      entry.Id = unreconciled[unrecLen - match - 1].Id
     }
   }
 }
