@@ -104,7 +104,7 @@ func main() {
   mux.Handle("/fin/trends", &trends.Handler{Store: kStore, Cdc:kCatDetailCache})
   mux.Handle("/fin/unreconciled", &unreconciled.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})
   mux.Handle("/fin/unreviewed", &unreviewed.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})
-  mux.Handle("/fin/upload", &upload.Handler{Doer: kDoer, Loader: kQFXLoader, Store: kStore})
+  mux.Handle("/fin/upload", &upload.Handler{Doer: kDoer})
   mux.Handle(
       "/fin/acname",
       &ac.Handler{

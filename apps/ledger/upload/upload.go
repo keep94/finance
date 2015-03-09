@@ -113,28 +113,28 @@ type Store interface {
 }
 
 type Handler struct {
-  Loader autoimport.Loader
-  Store Store
   Doer db.Doer
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
+  session := common.GetUserSession(r)
+  store := session.Store.(Store)
   acctId, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
   userSession := common.GetUserSession(r)
   batch := userSession.Batch(acctId)
   if batch == nil {
-    h.serveUploadPage(w, r, acctId)
+    h.serveUploadPage(w, r, acctId, store, session.QFXLoader)
   } else {
-    h.serveConfirmPage(w, r, acctId, batch)
+    h.serveConfirmPage(w, r, acctId, batch, store)
   }
 }
 
-func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctId int64, batch autoimport.Batch) {
+func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctId int64, batch autoimport.Batch, store Store) {
   if r.Method == "GET" {
     account := fin.Account{}
     unreconciled := make(reconcile.ByAmountCheckNo)
-    err := h.Store.UnreconciledEntries(
+    err := store.UnreconciledEntries(
         nil,
         acctId,
         &account, 
@@ -153,7 +153,7 @@ func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctI
     if !http_util.HasParam(r.Form, "cancel") {
       categorizerBuilder := aggregators.NewByNameCategorizerBuilder(4, 2)
       // If this fails, we can carry on. We just won't get autocategorization
-      h.Store.Entries(
+      store.Entries(
           nil, nil, functional.ModifyConsumer(
               consumers.FromEntryAggregator(categorizerBuilder),
               func(s functional.Stream) functional.Stream {
@@ -169,7 +169,7 @@ func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctI
           return
         }
         unreconciled := make(reconcile.ByAmountCheckNo)
-        err = h.Store.UnreconciledEntries(
+        err = store.UnreconciledEntries(
             t,
             acctId,
             nil, 
@@ -182,7 +182,7 @@ func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctI
           categorizer.Categorize(v)
         }
         reconcile.New(batchEntries).Reconcile(unreconciled, kMaxDays)
-        err = h.Store.DoEntryChanges(t, reconcile.GetChanges(batchEntries))
+        err = store.DoEntryChanges(t, reconcile.GetChanges(batchEntries))
         if err != nil {
           return
         }
@@ -201,9 +201,11 @@ func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctI
   }
 }
 
-func (h *Handler) serveUploadPage(w http.ResponseWriter, r *http.Request, acctId int64) {
+func (h *Handler) serveUploadPage(
+    w http.ResponseWriter, r *http.Request, acctId int64,
+    store Store, loader autoimport.Loader) {
   account := fin.Account{}
-  err := h.Store.AccountById(nil, acctId, &account)
+  err := store.AccountById(nil, acctId, &account)
   if err != nil {
     http_util.ReportError(w, "Error reading account from database.", err)
     return
@@ -244,7 +246,7 @@ func (h *Handler) serveUploadPage(w http.ResponseWriter, r *http.Request, acctId
       showView(w, view, errors.New("Start date must be in yyyyMMdd format."))
       return
     }
-    h.Store.UpdateAccountImportSD(nil, acctId, sd)
+    store.UpdateAccountImportSD(nil, acctId, sd)
     if fileTooLarge {
       showView(w, view, errors.New("File too large."))
       return
@@ -253,7 +255,7 @@ func (h *Handler) serveUploadPage(w http.ResponseWriter, r *http.Request, acctId
       showView(w, view, errors.New("Please select a file."))
       return
     }
-    batch, err := h.Loader.Load(acctId, "", &qfxFile, sd)
+    batch, err := loader.Load(acctId, "", &qfxFile, sd)
     if err != nil {
       showView(w, view, err)
       return
