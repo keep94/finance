@@ -218,34 +218,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   }
 }
 
-func (h *Handler) deleteId(id int64, store findb.DoEntryChangesRunner) error {
-  changes := findb.EntryChanges{Deletes: []int64{id}}
-  return store.DoEntryChanges(nil, &changes)
-}
-
-func (h *Handler) updateId(
-    id int64,
-    tag uint32,
-    mutation functional.Filterer,
-    store findb.DoEntryChangesRunner) error {
-  changes := findb.EntryChanges{
-      Updates: map[int64]functional.Filterer{ id: mutation},
-      Etags: map[int64]uint32{ id: tag}}
-  return store.DoEntryChanges(nil, &changes)
-}
-
-func (h *Handler) add(entry *fin.Entry, store findb.DoEntryChangesRunner) error {
-  changes := findb.EntryChanges{Adds: []*fin.Entry{entry}}
-  return store.DoEntryChanges(nil, &changes)
-}
-
 func (h *Handler) doPost(
     w http.ResponseWriter, r *http.Request, id int64,
     store Store, cdc categoriesdb.Getter) {
   var err error
   if http_util.HasParam(r.Form, "delete") {
     if isIdValid(id) {
-      err = h.deleteId(id, store)
+      err = deleteId(id, store)
     }
   } else if http_util.HasParam(r.Form, "cancel") {
     // Do nothing
@@ -256,7 +235,7 @@ func (h *Handler) doPost(
     if err == nil {
       if isIdValid(id) {
         tag, _ := strconv.ParseUint(r.Form.Get("etag"), 10, 32)
-        err = h.updateId(id, uint32(tag), mutation, store)
+        err = updateId(id, uint32(tag), mutation, store)
       } else {
         entry := fin.Entry{}
         mutation.Filter(&entry)
@@ -264,12 +243,12 @@ func (h *Handler) doPost(
         // reasonable.
         if r.Form.Get("last_date") != r.Form.Get("date") {
           if h.isDateReasonable(entry.Date) {
-            err = h.add(&entry, store)
+            err = add(&entry, store)
           } else {
             err = kDateMayBeWrong
           }
         } else {
-          err = h.add(&entry, store)
+          err = add(&entry, store)
         }
       }
     }
@@ -453,6 +432,27 @@ func entryMutation(values url.Values) (mutation functional.Filterer, err error) 
     return nil
   })
   return
+}
+
+func deleteId(id int64, store findb.DoEntryChangesRunner) error {
+  changes := findb.EntryChanges{Deletes: []int64{id}}
+  return store.DoEntryChanges(nil, &changes)
+}
+
+func updateId(
+    id int64,
+    tag uint32,
+    mutation functional.Filterer,
+    store findb.DoEntryChangesRunner) error {
+  changes := findb.EntryChanges{
+      Updates: map[int64]functional.Filterer{ id: mutation},
+      Etags: map[int64]uint32{ id: tag}}
+  return store.DoEntryChanges(nil, &changes)
+}
+
+func add(entry *fin.Entry, store findb.DoEntryChangesRunner) error {
+  changes := findb.EntryChanges{Adds: []*fin.Entry{entry}}
+  return store.DoEntryChanges(nil, &changes)
 }
 
 func init() {
