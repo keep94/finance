@@ -9,6 +9,7 @@ import (
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/autoimport"
   "github.com/keep94/finance/fin/categories"
+  "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/findb"
   "github.com/gorilla/sessions"
   "html/template"
@@ -34,6 +35,15 @@ type UserSession struct {
   *sessions.Session
   // User is the logged in user or nil if no user logged in
   User *fin.User
+
+  // Main store for accessing entries, accounts, and users
+  Store interface{}
+
+  // The category cache
+  Cache categoriesdb.Getter
+
+  // Loads QFX files
+  QFXLoader autoimport.Loader
 }
 
 // CreateUserSession creates a UserSession instance from a gorilla session

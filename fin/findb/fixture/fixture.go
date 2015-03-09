@@ -861,7 +861,8 @@ func NoUserByName(t *testing.T, store UserByNameStore) {
 
 func UpdateUser(t *testing.T, store UpdateUserStore) {
   createUsers(t, store)
-  user := fin.User{Id: 2, Name: "n2", Password: "p2"}
+  user := fin.User{
+      Id: 2, Name: "n2", Password: "p2", Permission: fin.ReadPermission}
   err := store.UpdateUser(nil, &user)
   if err != nil {
     t.Fatalf("Got error updating database: %v", err)
@@ -903,7 +904,11 @@ func verifyNoUser(t *testing.T, store findb.UserByIdRunner, id int64) {
 }
     
 func newUser(id int64) *fin.User {
-  return &fin.User{Id: id, Name: fmt.Sprintf("name%d", id), Password: passwords.Password(fmt.Sprintf("password%d", id))}
+  return &fin.User{
+      Id: id,
+      Name: fmt.Sprintf("name%d", id),
+      Password: passwords.Password(fmt.Sprintf("password%d", id)),
+      Permission: fin.Permission(id) % (fin.NonePermission + 1)}
 }
 
 func ymdPtr(year, month, day int) *time.Time {

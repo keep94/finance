@@ -30,6 +30,7 @@ import (
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/autoimport"
   "github.com/keep94/finance/fin/autoimport/qfx"
+  "github.com/keep94/finance/fin/autoimport/qfx/qfxdb"
   qfxsqlite "github.com/keep94/finance/fin/autoimport/qfx/qfxdb/for_sqlite"
   csqlite "github.com/keep94/finance/fin/categories/categoriesdb/for_sqlite"
   "github.com/keep94/finance/fin/findb/for_sqlite"
@@ -57,6 +58,9 @@ var (
   kCatDetailCache *csqlite.Cache
   kStore for_sqlite.Store
   kQFXLoader autoimport.Loader
+  kReadOnlyCatDetailCache csqlite.ReadOnlyCache
+  kReadOnlyStore for_sqlite.ReadOnlyStore
+  kReadOnlyQFXLoader autoimport.Loader
   kSessionStore = ramstore.NewRAMStore(kSessionTimeout)
   kClock date_util.SystemClock
 )
@@ -90,7 +94,7 @@ func main() {
   mux.Handle(
       "/fin/account",
       &account.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})
-  mux.Handle("/fin/single", &single.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, Clock: kClock})
+  mux.Handle("/fin/single", &single.Handler{Doer: kDoer, Clock: kClock})
   mux.Handle("/fin/catedit", &catedit.Handler{Cdc: kCatDetailCache})
   mux.Handle("/fin/logout", &logout.Handler{})
   mux.Handle("/fin/chpasswd", &chpasswd.Handler{Store: kStore, Doer: kDoer})
@@ -144,6 +148,7 @@ func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         http_util.NewUrl("/auth/login", "prev", r.URL.String()).String())
     return
   }
+  setupStores(session)
   logging.SetUserName(r, session.User.Name)
   h.ServeMux.ServeHTTP(w, r)
 }
@@ -171,9 +176,27 @@ func setupDb(filepath string) {
     panic(err.Error())
   }
   dbase := sqlite_db.New(conn)
+  qfxdata := qfxsqlite.New(dbase)
   kDoer = sqlite_db.NewDoer(dbase)
   kCatDetailCache = csqlite.New(dbase)
   kStore = for_sqlite.New(dbase)
-  kQFXLoader = qfx.QFXLoader{qfxsqlite.New(dbase)}
+  kQFXLoader = qfx.QFXLoader{qfxdata}
+  kReadOnlyCatDetailCache = csqlite.ReadOnlyWrapper(kCatDetailCache)
+  kReadOnlyStore = for_sqlite.ReadOnlyWrapper(kStore)
+  kReadOnlyQFXLoader = qfx.QFXLoader{qfxdb.ReadOnlyWrapper(qfxdata)}
 }
+
+func setupStores(session *common.UserSession) {
+  switch (session.User.Permission) {
+    case fin.AllPermission:
+      session.Store = kStore
+      session.Cache = kCatDetailCache
+      session.QFXLoader = kQFXLoader
+    default:
+      session.Store = kReadOnlyStore
+      session.Cache = kReadOnlyCatDetailCache
+      session.QFXLoader = kReadOnlyQFXLoader
+  }
+}
+
 

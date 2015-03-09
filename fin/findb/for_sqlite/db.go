@@ -33,12 +33,12 @@ const (
     kSQLUpdateAccountImportSD = "update accounts set import_sd = ? where id = ?"
     kSQLUpdateAccount = "update accounts set name = ?, is_active = ?, balance = ?, reconciled = ?, b_count = ?, r_count = ?, import_sd = ? where id = ?"
     kSQLRemoveAccount = "delete from accounts where id = ?"
-    kSQLUserById = "select id, name, go_password from users where id = ?"
-    kSQLUsers = "select id, name, go_password from users order by name"
+    kSQLUserById = "select id, name, go_password, permission from users where id = ?"
+    kSQLUsers = "select id, name, go_password, permission from users order by name"
     kSQLRemoveUserByName = "delete from users where name = ?"
-    kSQLUserByName = "select id, name, go_password from users where name = ?"
-    kSQLInsertUser = "insert into users (name, go_password) values (?, ?)"
-    kSQLUpdateUser = "update users set name = ?, go_password = ? where id = ?"
+    kSQLUserByName = "select id, name, go_password, permission from users where name = ?"
+    kSQLInsertUser = "insert into users (name, go_password, permission) values (?, ?, ?)"
+    kSQLUpdateUser = "update users set name = ?, go_password = ?, permission = ? where id = ?"
 )
 
 func New(db *sqlite_db.Db) Store {
@@ -47,6 +47,10 @@ func New(db *sqlite_db.Db) Store {
 
 func ConnNew(conn *sqlite.Conn) Store {
   return Store{sqlite_db.NewSqliteDoer(conn)}
+}
+
+func ReadOnlyWrapper(store Store) ReadOnlyStore {
+  return ReadOnlyStore{store: store}
 }
 
 func entries(conn *sqlite.Conn, options *findb.EntryListOptions, consumer functional.Consumer) error {
@@ -400,14 +404,15 @@ func (r *rawAccount) Marshall() error {
 type rawUser struct {
   *fin.User
   rawPassword string
+  rawPermission int
 } 
 
 func (r *rawUser) Ptrs() []interface{} {
-  return []interface{} {&r.Id, &r.Name, &r.rawPassword}
+  return []interface{} {&r.Id, &r.Name, &r.rawPassword, &r.rawPermission}
 }
 
 func (r *rawUser) Values() []interface{} {
-  return []interface{} {r.Name, r.rawPassword, r.Id}
+  return []interface{} {r.Name, r.rawPassword, r.rawPermission, r.Id}
 }
 
 func (r *rawUser) Pair(ptr interface{}) {
@@ -416,11 +421,16 @@ func (r *rawUser) Pair(ptr interface{}) {
 
 func (r *rawUser) Unmarshall() error {
   r.Password = passwords.Password(r.rawPassword)
+  if r.rawPermission < int(fin.AllPermission) || r.rawPermission > int(fin.NonePermission) {
+    return errors.New(fmt.Sprintf("for_sqlite: permission value invalid: %d", r.rawPermission))
+  }
+  r.Permission = fin.Permission(r.rawPermission)
   return nil
 }
 
 func (r *rawUser) Marshall() error {
   r.rawPassword = string(r.Password)
+  r.rawPermission = int(r.Permission)
   return nil
 }
 
@@ -639,3 +649,60 @@ func (s Store) Users(
   })
 }
 
+type ReadOnlyStore struct {
+  findb.NoPermissionStore
+  store Store
+}
+
+func (s ReadOnlyStore) AccountById(
+    t db.Transaction, acctId int64, account *fin.Account) error {
+  return s.store.AccountById(t, acctId, account)
+}
+
+func (s ReadOnlyStore) Accounts(
+    t db.Transaction, consumer functional.Consumer) error {
+  return s.store.Accounts(t, consumer)
+}
+
+func (s ReadOnlyStore) ActiveAccounts(t db.Transaction) (
+    accounts []*fin.Account, err error) {
+  return s.store.ActiveAccounts(t)
+}
+
+func (s ReadOnlyStore) Entries(
+    t db.Transaction, options *findb.EntryListOptions,
+    consumer functional.Consumer) error {
+  return s.store.Entries(t, options, consumer)
+}
+
+func (s ReadOnlyStore) EntriesByAccountId(
+    t db.Transaction, acctId int64, account *fin.Account,
+    consumer functional.Consumer) error {
+  return s.store.EntriesByAccountId(t, acctId, account, consumer)
+}
+
+func (s ReadOnlyStore) EntryById(
+    t db.Transaction, id int64, entry *fin.Entry) error {
+  return s.store.EntryById(t, id, entry)
+}
+
+func (s ReadOnlyStore) UnreconciledEntries(
+    t db.Transaction, acctId int64,
+    account *fin.Account, consumer functional.Consumer) error {
+  return s.store.UnreconciledEntries(t, acctId, account, consumer)
+}
+
+func (s ReadOnlyStore) UserById(
+    t db.Transaction, id int64, user *fin.User) error {
+  return s.store.UserById(t, id, user)
+}
+
+func (s ReadOnlyStore) UserByName(
+    t db.Transaction, name string, user *fin.User) error {
+  return s.store.UserByName(t, name, user)
+}
+
+func (s ReadOnlyStore) Users(
+    t db.Transaction, consumer functional.Consumer) error {
+  return s.store.Users(t, consumer)
+}

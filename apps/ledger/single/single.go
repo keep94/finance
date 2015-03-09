@@ -27,6 +27,7 @@ const (
 
 var (
   kDateMayBeWrong = errors.New("Date may be wrong, proceed anyway?")
+  kCantAccessDatastore = errors.New("Can't access datastore")
 )
 
 var (
@@ -196,44 +197,55 @@ type Store interface {
 
 type Handler struct {
   Doer db.Doer
-  Store Store
-  Cdc categoriesdb.Getter
   Clock date_util.Clock
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
+  session := common.GetUserSession(r)
+  store, ok := session.Store.(Store)
+  if !ok {
+    http_util.ReportError(
+        w, "Error accessing datastore", kCantAccessDatastore)
+    return
+  }
   id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
   paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
   if r.Method == "GET" {
-    h.doGet(w, id, paymentId)
+    h.doGet(w, id, paymentId, store, session.Cache)
   } else {
-    h.doPost(w, r, id)
+    h.doPost(w, r, id, store, session.Cache)
   }
 }
 
-func (h *Handler) deleteId(id int64) error {
+func (h *Handler) deleteId(id int64, store findb.DoEntryChangesRunner) error {
   changes := findb.EntryChanges{Deletes: []int64{id}}
-  return h.Store.DoEntryChanges(nil, &changes)
+  return store.DoEntryChanges(nil, &changes)
 }
 
-func (h *Handler) updateId(id int64, tag uint32, mutation functional.Filterer) error {
+func (h *Handler) updateId(
+    id int64,
+    tag uint32,
+    mutation functional.Filterer,
+    store findb.DoEntryChangesRunner) error {
   changes := findb.EntryChanges{
       Updates: map[int64]functional.Filterer{ id: mutation},
       Etags: map[int64]uint32{ id: tag}}
-  return h.Store.DoEntryChanges(nil, &changes)
+  return store.DoEntryChanges(nil, &changes)
 }
 
-func (h *Handler) add(entry *fin.Entry) error {
+func (h *Handler) add(entry *fin.Entry, store findb.DoEntryChangesRunner) error {
   changes := findb.EntryChanges{Adds: []*fin.Entry{entry}}
-  return h.Store.DoEntryChanges(nil, &changes)
+  return store.DoEntryChanges(nil, &changes)
 }
 
-func (h *Handler) doPost(w http.ResponseWriter, r *http.Request, id int64) {
+func (h *Handler) doPost(
+    w http.ResponseWriter, r *http.Request, id int64,
+    store Store, cdc categoriesdb.Getter) {
   var err error
   if http_util.HasParam(r.Form, "delete") {
     if isIdValid(id) {
-      err = h.deleteId(id)
+      err = h.deleteId(id, store)
     }
   } else if http_util.HasParam(r.Form, "cancel") {
     // Do nothing
@@ -244,7 +256,7 @@ func (h *Handler) doPost(w http.ResponseWriter, r *http.Request, id int64) {
     if err == nil {
       if isIdValid(id) {
         tag, _ := strconv.ParseUint(r.Form.Get("etag"), 10, 32)
-        err = h.updateId(id, uint32(tag), mutation)
+        err = h.updateId(id, uint32(tag), mutation, store)
       } else {
         entry := fin.Entry{}
         mutation.Filter(&entry)
@@ -252,12 +264,12 @@ func (h *Handler) doPost(w http.ResponseWriter, r *http.Request, id int64) {
         // reasonable.
         if r.Form.Get("last_date") != r.Form.Get("date") {
           if h.isDateReasonable(entry.Date) {
-            err = h.add(&entry)
+            err = h.add(&entry, store)
           } else {
             err = kDateMayBeWrong
           }
         } else {
-          err = h.add(&entry)
+          err = h.add(&entry, store)
         }
       }
     }
@@ -266,7 +278,7 @@ func (h *Handler) doPost(w http.ResponseWriter, r *http.Request, id int64) {
     if err == findb.ConcurrentUpdate {
       err = errors.New("Someone else already updated this entry. Hit cancel and try again.") 
     }
-    cds, _ := h.Cdc.Get(nil)
+    cds, _ := cdc.Get(nil)
     http_util.WriteTemplate(
         w, kTemplate, toViewFromForm(isIdValid(id), r.Form, cds, err))
   } else {
@@ -274,17 +286,19 @@ func (h *Handler) doPost(w http.ResponseWriter, r *http.Request, id int64) {
   }
 }
 
-func (h *Handler) doGet(w http.ResponseWriter, id, paymentId int64) {
+func (h *Handler) doGet(
+    w http.ResponseWriter, id, paymentId int64,
+    store findb.EntryByIdRunner, cdc categoriesdb.Getter) {
   var v *view
   if isIdValid(id) {
     entry := fin.Entry{}
     cds := categories.CatDetailStore{}
     err := h.Doer.Do(func(t db.Transaction) (err error) {
-      cds, err = h.Cdc.Get(t)
+      cds, err = cdc.Get(t)
       if err != nil {
         return
       }
-      return h.Store.EntryById(t, id, &entry)
+      return store.EntryById(t, id, &entry)
     })
     if err == findb.NoSuchId {
       fmt.Fprintln(w, "No entry found.")
@@ -296,7 +310,7 @@ func (h *Handler) doGet(w http.ResponseWriter, id, paymentId int64) {
     }
     v = toView(&entry, cds)
   } else {
-    cds, _ := h.Cdc.Get(nil)
+    cds, _ := cdc.Get(nil)
     values := make(url.Values)
     if paymentId > 0 {
       values.Set("payment", strconv.FormatInt(paymentId, 10))

@@ -12,6 +12,7 @@ import (
 var (
   ConcurrentUpdate = errors.New("findb: Concurrent update.")
   NoSuchId = errors.New("findb: No Such Id.")
+  NoPermission = errors.New("findb: Insufficient permission.")
 )
 
 type AccountByIdRunner interface {
@@ -143,3 +144,91 @@ type EntryListOptions struct {
   Unreviewed bool
 }
 
+// NoPermissionStore always returns NoPermissionError
+type NoPermissionStore struct {
+}
+
+func (n NoPermissionStore) AccountById(
+    t db.Transaction, acctId int64, account *fin.Account) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) Accounts(
+    t db.Transaction, consumer functional.Consumer) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) ActiveAccounts(
+    t db.Transaction) (accounts []*fin.Account, err error) {
+  return nil, NoPermission
+}
+
+func (n NoPermissionStore) AddAccount(
+    t db.Transaction, Account *fin.Account) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) UpdateAccountImportSD(
+      t db.Transaction, accountId int64, date time.Time) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) UpdateAccount(
+      t db.Transaction, account *fin.Account) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) RemoveAccount(
+    t db.Transaction, accountId int64) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) DoEntryChanges(
+    t db.Transaction, changes *EntryChanges) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) Entries( t db.Transaction, options *EntryListOptions,
+    consumer functional.Consumer) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) EntriesByAccountId(t db.Transaction, acctId int64,
+    account *fin.Account, consumer functional.Consumer) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) EntryById(
+    t db.Transaction, id int64, entry *fin.Entry) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) UnreconciledEntries(
+    t db.Transaction, acctId int64, account *fin.Account,
+    consumer functional.Consumer) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) AddUser(t db.Transaction, user *fin.User) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) UpdateUser(t db.Transaction, user *fin.User) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) UserById(t db.Transaction, id int64, user *fin.User) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) UserByName(t db.Transaction, name string, user *fin.User) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) Users(t db.Transaction, consumer functional.Consumer) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) RemoveUserByName(t db.Transaction, name string) error {
+  return NoPermission
+}

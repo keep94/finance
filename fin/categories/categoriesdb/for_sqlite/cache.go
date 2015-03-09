@@ -6,11 +6,16 @@ import (
   "github.com/keep94/appcommon/db/sqlite_db"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
+  "github.com/keep94/finance/fin/categories/categoriesdb"
   "sync"
 )
 
 func New(db *sqlite_db.Db) *Cache {
   return &Cache{db: db}
+}
+
+func ReadOnlyWrapper(c *Cache) ReadOnlyCache {
+  return ReadOnlyCache{cache: c}
 }
 
 type catDetailCache struct {
@@ -253,4 +258,18 @@ func (c *Cache) Rename(t db.Transaction, id fin.Cat, newName string) (
     return
   })
   return
+}
+
+type ReadOnlyCache struct {
+  categoriesdb.NoPermissionCache
+  cache *Cache
+}
+
+func (c ReadOnlyCache) Get(t db.Transaction) (
+    cds categories.CatDetailStore, err error) {
+  return c.cache.Get(t)
+}
+
+func (c ReadOnlyCache) Invalidate(t db.Transaction) error {
+  return c.cache.Invalidate(t)
 }

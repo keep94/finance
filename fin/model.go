@@ -24,6 +24,12 @@ const (
   AccountCat
 )
 
+const (
+  AllPermission Permission = iota  // Must be first and zero
+  ReadPermission
+  NonePermission  // Must be last
+)
+
 var (
   // Expense is the top level expense category.
   Expense = Cat{Type: ExpenseCat}
@@ -612,11 +618,28 @@ func (a *AddBalanceStream) Next(ptr interface{}) error {
   return err
 }
 
+// Permission represents a user's permission to the database
+type Permission int
+
+func (p Permission) String() string {
+  switch p {
+    case AllPermission:
+      return "All"
+    case ReadPermission:
+      return "Read"
+    case NonePermission:
+      return "None"
+    default:
+      panic("Illegal Permission Value")
+  }
+}
+
 // User represents a user.
 type User struct {
   Id int64
   Name string
   passwords.Password
+  Permission Permission
 }
 
 // FormatUSD returns amount as dollars and cents.

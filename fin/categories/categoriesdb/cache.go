@@ -2,9 +2,14 @@
 package categoriesdb
 
 import (
+  "errors"
   "github.com/keep94/appcommon/db"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
+)
+
+var (
+  NoPermission = errors.New("categoriesdb: Insufficient permission.")
 )
 
 type Getter interface {
@@ -87,3 +92,54 @@ type Purger interface {
   Purge(t db.Transaction, cats fin.CatSet) error
 }
 
+// NoPermissionCache always returns NoPermission error.
+type NoPermissionCache struct {
+}
+
+func (n NoPermissionCache) Get(t db.Transaction) (cds categories.CatDetailStore, err error) {
+  err = NoPermission
+  return
+}
+
+func (n NoPermissionCache) Invalidate(t db.Transaction) error {
+  return NoPermission
+}
+
+func (n NoPermissionCache) Add(t db.Transaction, name string) (
+    cds categories.CatDetailStore, newId fin.Cat, err error) {
+  err = NoPermission
+  return
+}
+
+func (n NoPermissionCache) Remove(t db.Transaction, id fin.Cat) (cds categories.CatDetailStore, err error) {
+  err = NoPermission
+  return
+}
+
+func (n NoPermissionCache) Rename(t db.Transaction, id fin.Cat, newName string) (
+    cds categories.CatDetailStore, err error) {
+  err = NoPermission
+  return
+}
+
+func (n NoPermissionCache) AccountAdd(t db.Transaction, name string) (
+    cds categories.CatDetailStore, newId int64, err error) {
+  err = NoPermission
+  return
+}
+
+func (n NoPermissionCache) AccountRemove(t db.Transaction, id int64) (
+    cds categories.CatDetailStore, err error) {
+  err = NoPermission
+  return
+}
+
+func (n NoPermissionCache) AccountRename(t db.Transaction, id int64, newName string) (
+    cds categories.CatDetailStore, err error) {
+  err = NoPermission
+  return
+}
+
+func (n NoPermissionCache) Purge(t db.Transaction, cats fin.CatSet) error {
+  return NoPermission
+}
