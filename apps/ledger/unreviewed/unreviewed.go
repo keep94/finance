@@ -66,10 +66,8 @@ body {
 {{if .Entries}}
 <form method="post">
   <input type="hidden" name="edit_id" value="">
-  {{if .AllAccess}}
   <input type="submit" name="draft" value="Save Draft">
   <input type="submit" name="final" value="Submit checked entries">
-  {{end}}
   <table>
     <tr>
       <td>&nbsp;</td>
@@ -93,7 +91,7 @@ body {
         <script type="text/javascript">populateSelect(document.getElementById("cat_{{.Id}}"), gActiveCategories)</script>
       </td>
       <td>{{FormatDate .Date}}</td>
-      <td>{{if $top.AllAccess}}<a href="#" onclick="document.forms[0].edit_id.value={{.Id}}; document.forms[0].submit()">{{.Name}}</a>{{else}}{{.Name}}{{end}}</td>
+      <td><a href="#" onclick="document.forms[0].edit_id.value={{.Id}}; document.forms[0].submit()">{{.Name}}</a></td>
       <td align=right>{{FormatUSD .Total}}</td>
       <td>{{$top.AcctName .CatPayment}}</td>
       </tr>
@@ -111,10 +109,8 @@ body {
   {{end}}
   {{end}}
   </table>
-  {{if .AllAccess}}
   <input type="submit" name="draft" value="Save Draft">
   <input type="submit" name="final" value="Submit checked entries">
-  {{end}}
 </form>
 <script type="text/javascript">
   var descSuggester = new Suggester("/fin/acdesc");
@@ -156,7 +152,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   session := common.GetUserSession(r)
   store := session.Store.(Store)
   cache := session.Cache
-  bAllAccess := (session.User.Permission == fin.AllPermission)
   message := ""
   if r.Method == "POST" {
     _, isFinal := r.Form["final"]
@@ -173,6 +168,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         Updates: updates, Etags: etags})
     if err == findb.ConcurrentUpdate {
       message = "You changes were not saved because another user saved while you were editing."
+    } else if err == findb.NoPermission {
+      message = "Insufficient permission."
     } else if err != nil {
       http_util.ReportError(w, "Error writing to database.", err)
       return
@@ -202,8 +199,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           common.CatDisplayer{cds},
           common.EntryLinker{r.URL},
           buffer.Entries(),
-          message,
-          bAllAccess})
+          message})
 }
 
 type view struct {
@@ -212,7 +208,6 @@ type view struct {
   common.EntryLinker
   Entries []fin.Entry
   ErrorMessage string
-  AllAccess bool
 }
 
 func (v *view) InProgress(status fin.ReviewStatus) bool {
