@@ -27,7 +27,6 @@ const (
 
 var (
   kDateMayBeWrong = errors.New("Date may be wrong, proceed anyway?")
-  kCantAccessDatastore = errors.New("Can't access datastore")
 )
 
 var (
@@ -203,12 +202,7 @@ type Handler struct {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
   session := common.GetUserSession(r)
-  store, ok := session.Store.(Store)
-  if !ok {
-    http_util.ReportError(
-        w, "Error accessing datastore", kCantAccessDatastore)
-    return
-  }
+  store := session.Store.(Store)
   id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
   paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
   if r.Method == "GET" {

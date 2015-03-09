@@ -95,7 +95,7 @@ func main() {
       "/fin/account",
       &account.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})
   mux.Handle("/fin/single", &single.Handler{Doer: kDoer, Clock: kClock})
-  mux.Handle("/fin/catedit", &catedit.Handler{Cdc: kCatDetailCache})
+  mux.Handle("/fin/catedit", &catedit.Handler{})
   mux.Handle("/fin/logout", &logout.Handler{})
   mux.Handle("/fin/chpasswd", &chpasswd.Handler{Store: kStore, Doer: kDoer})
   mux.Handle("/fin/leftnav", &leftnav.Handler{Cdc: kCatDetailCache, Clock: kClock})

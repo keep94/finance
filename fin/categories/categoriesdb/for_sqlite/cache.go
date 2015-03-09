@@ -260,6 +260,9 @@ func (c *Cache) Rename(t db.Transaction, id fin.Cat, newName string) (
   return
 }
 
+// The writing methods of ReadOnlyCache merely return
+// categoriesdb.NoPermission error along with the contents of the cache.
+// If nothing is in the cache, they read from the database.
 type ReadOnlyCache struct {
   categoriesdb.NoPermissionCache
   cache *Cache
@@ -270,6 +273,42 @@ func (c ReadOnlyCache) Get(t db.Transaction) (
   return c.cache.Get(t)
 }
 
-func (c ReadOnlyCache) Invalidate(t db.Transaction) error {
-  return c.cache.Invalidate(t)
+func (c ReadOnlyCache) AccountAdd(t db.Transaction, name string) (
+    cds categories.CatDetailStore, newId int64, err error) {
+  cds, err = c.reportNoPermission(t)
+  return
+}
+
+func (c ReadOnlyCache) AccountRename(t db.Transaction, id int64, name string) (
+    cds categories.CatDetailStore, err error) {
+  return c.reportNoPermission(t)
+}
+
+func (c ReadOnlyCache) AccountRemove(t db.Transaction, id int64) (
+    cds categories.CatDetailStore, err error) {
+  return c.reportNoPermission(t)
+}
+
+func (c ReadOnlyCache) Add(t db.Transaction, name string) (
+    cds categories.CatDetailStore, newId fin.Cat, err error) {
+  cds, err = c.reportNoPermission(t)
+  return
+}
+
+func (c ReadOnlyCache) Remove(t db.Transaction, id fin.Cat) (
+    cds categories.CatDetailStore, err error) {
+  return c.reportNoPermission(t)
+}
+
+func (c ReadOnlyCache) Rename(
+    t db.Transaction, id fin.Cat, newName string) (
+    cds categories.CatDetailStore, err error) {
+  return c.reportNoPermission(t)
+}
+
+func (c ReadOnlyCache) reportNoPermission(t db.Transaction) (
+    cds categories.CatDetailStore, err error) {
+  cds, _ = c.cache.Get(t)
+  err = categoriesdb.NoPermission
+  return
 }

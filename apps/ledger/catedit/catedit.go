@@ -68,46 +68,47 @@ type Cache interface {
 }
 
 type Handler struct {
-  Cdc Cache
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  session := common.GetUserSession(r)
+  cache := session.Cache.(Cache)
   r.ParseForm()
   if r.Method == "GET" {
-    cds, _ := h.Cdc.Get(nil)
+    cds, _ := cache.Get(nil)
     http_util.WriteTemplate(
         w,
         kTemplate,
         &view{CatDisplayer: common.CatDisplayer{cds}})
   } else {
     message := ""
-    cds, _ := h.Cdc.Get(nil)
+    cds, _ := cache.Get(nil)
     cat := fin.NewCat(r.Form.Get("cat"))
     var err error
     if http_util.HasParam(r.Form, "add") {
       name := r.Form.Get("name")
       if strings.HasPrefix(name, "account:") {
-        cds, _, err = h.Cdc.AccountAdd(nil, name[8:])
+        cds, _, err = cache.AccountAdd(nil, name[8:])
       } else {
-        cds, _, err = h.Cdc.Add(nil, name)
+        cds, _, err = cache.Add(nil, name)
       }
       message = fmt.Sprintf("Category %s added.", name)
     } else if http_util.HasParam(r.Form, "rename") {
       name := r.Form.Get("name")
       oldName := cds.DetailById(cat).FullName()
       if cat.Type == fin.AccountCat && strings.HasPrefix(name, "account:") {
-        cds, err = h.Cdc.AccountRename(nil, cat.Id, name[8:])
+        cds, err = cache.AccountRename(nil, cat.Id, name[8:])
       } else {
-        cds, err = h.Cdc.Rename(nil, cat, name)
+        cds, err = cache.Rename(nil, cat, name)
       }
       message = fmt.Sprintf(
           "Category %s renamed to %s.", oldName, name)
     } else if http_util.HasParam(r.Form, "remove") {
       oldName := cds.DetailById(cat).FullName()
       if cat.Type == fin.AccountCat {
-        cds, err = h.Cdc.AccountRemove(nil, cat.Id)
+        cds, err = cache.AccountRemove(nil, cat.Id)
       } else {
-        cds, err = h.Cdc.Remove(nil, cat)
+        cds, err = cache.Remove(nil, cat)
       }
       message = fmt.Sprintf(
           "Category %s removed.", oldName)
