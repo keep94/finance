@@ -8,7 +8,6 @@ import (
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/findb"
   "github.com/keep94/gofunctional3/functional"
@@ -67,8 +66,10 @@ body {
 {{if .Entries}}
 <form method="post">
   <input type="hidden" name="edit_id" value="">
+  {{if .AllAccess}}
   <input type="submit" name="draft" value="Save Draft">
   <input type="submit" name="final" value="Submit checked entries">
+  {{end}}
   <table>
     <tr>
       <td>&nbsp;</td>
@@ -92,7 +93,7 @@ body {
         <script type="text/javascript">populateSelect(document.getElementById("cat_{{.Id}}"), gActiveCategories)</script>
       </td>
       <td>{{FormatDate .Date}}</td>
-      <td><a href="#" onclick="document.forms[0].edit_id.value={{.Id}}; document.forms[0].submit()">{{.Name}}</a></td>
+      <td>{{if $top.AllAccess}}<a href="#" onclick="document.forms[0].edit_id.value={{.Id}}; document.forms[0].submit()">{{.Name}}</a>{{else}}{{.Name}}{{end}}</td>
       <td align=right>{{FormatUSD .Total}}</td>
       <td>{{$top.AcctName .CatPayment}}</td>
       </tr>
@@ -110,8 +111,10 @@ body {
   {{end}}
   {{end}}
   </table>
+  {{if .AllAccess}}
   <input type="submit" name="draft" value="Save Draft">
   <input type="submit" name="final" value="Submit checked entries">
+  {{end}}
 </form>
 <script type="text/javascript">
   var descSuggester = new Suggester("/fin/acdesc");
@@ -144,14 +147,16 @@ type Store interface {
 }
 
 type Handler struct {
-  Cdc categoriesdb.Getter
-  Store Store
   Doer db.Doer
   PageSize int
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
+  session := common.GetUserSession(r)
+  store := session.Store.(Store)
+  cache := session.Cache
+  bAllAccess := (session.User.Permission == fin.AllPermission)
   message := ""
   if r.Method == "POST" {
     _, isFinal := r.Form["final"]
@@ -164,7 +169,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       etag, _ := strconv.ParseUint(r.Form.Get(fmt.Sprintf("etag_%d", id)), 10, 32)
       etags[id] = uint32(etag)
     }
-    err := h.Store.DoEntryChanges(nil, &findb.EntryChanges{
+    err := store.DoEntryChanges(nil, &findb.EntryChanges{
         Updates: updates, Etags: etags})
     if err == findb.ConcurrentUpdate {
       message = "You changes were not saved because another user saved while you were editing."
@@ -182,8 +187,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   buffer := consumers.NewEntryBuffer(h.PageSize)
   cds := categories.CatDetailStore{}
   err := h.Doer.Do(func(t db.Transaction) error {
-    cds, _ = h.Cdc.Get(t)
-    return h.Store.Entries(t, &findb.EntryListOptions{Unreviewed: true}, buffer)
+    cds, _ = cache.Get(t)
+    return store.Entries(t, &findb.EntryListOptions{Unreviewed: true}, buffer)
   })
   if err != nil {
     http_util.ReportError(w, "Error reading database.", err)
@@ -197,7 +202,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           common.CatDisplayer{cds},
           common.EntryLinker{r.URL},
           buffer.Entries(),
-          message})
+          message,
+          bAllAccess})
 }
 
 type view struct {
@@ -206,6 +212,7 @@ type view struct {
   common.EntryLinker
   Entries []fin.Entry
   ErrorMessage string
+  AllAccess bool
 }
 
 func (v *view) InProgress(status fin.ReviewStatus) bool {

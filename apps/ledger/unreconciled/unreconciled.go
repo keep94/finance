@@ -7,7 +7,6 @@ import (
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/findb"
   "github.com/keep94/gofunctional3/consume"
@@ -77,8 +76,6 @@ type Store interface {
 }
 
 type Handler struct {
-  Store Store
-  Cdc categoriesdb.Getter
   Doer db.Doer
   PageSize int
 }
@@ -86,6 +83,9 @@ type Handler struct {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
+  session := common.GetUserSession(r)
+  store := session.Store.(Store)
+  cache := session.Cache
   acctId, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
   if r.Method == "POST" {
     editId, _ := strconv.ParseInt(r.Form.Get("edit_id"), 10, 64)
@@ -102,7 +102,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       id, _ := strconv.ParseInt(idStr, 10, 64)
       updates[id] = reconciler
     }
-    h.Store.DoEntryChanges(nil, &findb.EntryChanges{Updates: updates})
+    store.DoEntryChanges(nil, &findb.EntryChanges{Updates: updates})
     if editId != 0 {
       entryLinker := common.EntryLinker{r.URL}
       accountLinker := common.AccountLinker{}
@@ -123,8 +123,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   buffer := consumers.NewEntryBuffer(h.PageSize)
   account := fin.Account{}
   err := h.Doer.Do(func(t db.Transaction) (err error) {
-    cds, _ = h.Cdc.Get(t)
-    return h.Store.UnreconciledEntries(t, acctId, &account, buffer)
+    cds, _ = cache.Get(t)
+    return store.UnreconciledEntries(t, acctId, &account, buffer)
   })
   if err == findb.NoSuchId {
     fmt.Fprintln(w, "No such account.")

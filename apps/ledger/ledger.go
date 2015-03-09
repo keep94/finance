@@ -102,8 +102,8 @@ func main() {
   mux.Handle("/fin/frame", &frame.Handler{Title: fTitle})
   mux.Handle("/fin/report", &report.Handler{Cdc: kCatDetailCache, Store: kStore})
   mux.Handle("/fin/trends", &trends.Handler{Store: kStore, Cdc:kCatDetailCache})
-  mux.Handle("/fin/unreconciled", &unreconciled.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})
-  mux.Handle("/fin/unreviewed", &unreviewed.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})
+  mux.Handle("/fin/unreconciled", &unreconciled.Handler{Doer: kDoer, PageSize: kPageSize})
+  mux.Handle("/fin/unreviewed", &unreviewed.Handler{Doer: kDoer, PageSize: kPageSize})
   mux.Handle("/fin/upload", &upload.Handler{Doer: kDoer})
   mux.Handle(
       "/fin/acname",

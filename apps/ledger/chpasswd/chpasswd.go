@@ -66,6 +66,9 @@ type Handler struct {
   Doer db.Doer
 }
 
+// Changes user's password. This page must do nothing but change user's
+// password. Caution: This page gets full access to user data store
+// regardless of logged in user's permissions.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   session := common.GetUserSession(r)
   if r.Method == "GET" {
