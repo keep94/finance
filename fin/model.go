@@ -25,9 +25,13 @@ const (
 )
 
 const (
-  AllPermission Permission = iota  // Must be first and zero
+  // Represents full control. This is always first and zero.
+  AllPermission Permission = iota
+  // Represents read-only permission.
   ReadPermission
-  NonePermission  // Must be last
+  // Represents no permissions. This is always last. New permissions must
+  // be inserted right before this one.
+  NonePermission
 )
 
 var (
@@ -632,6 +636,29 @@ func (p Permission) String() string {
     default:
       panic("Illegal Permission Value")
   }
+}
+
+// ToInt maps a permission to an int in a way that is suitable for persistent
+// storage. In particular, NonePermission ==> -1 because the actual value of
+// NonePermission can change as it is always last.
+func (p Permission) ToInt() int {
+  if p == NonePermission {
+    return -1
+  }
+  return int(p)
+}
+
+// ToPermission takes an int that ToInt returned and converts it back to a
+// Permission. On success, returns the permission and true. If x is out of
+// range, returns NonePermission and false.
+func ToPermission(x int) (Permission, bool) {
+  if x == -1 {
+    return NonePermission, true
+  }
+  if x >= 0 && x < int(NonePermission) {
+    return Permission(x), true
+  }
+  return NonePermission, false
 }
 
 // User represents a user.

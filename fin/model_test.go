@@ -412,6 +412,35 @@ func TestCatSet(t *testing.T) {
   }
 }
 
+func TestPermission(t *testing.T) {
+  if p, ok := ToPermission(AllPermission.ToInt()); p != AllPermission || !ok {
+    t.Error("Round trip failed for AllPermission")
+  }
+  if p, ok := ToPermission(ReadPermission.ToInt()); p != ReadPermission || !ok {
+    t.Error("Round trip failed for ReadPermission")
+  }
+  if p, ok := ToPermission(NonePermission.ToInt()); p != NonePermission || !ok {
+    t.Error("Round trip failed for NonePermission")
+  }
+  // -1 is smallest allowed int
+  if p, ok := ToPermission(-2); p != NonePermission || ok {
+    t.Error("Failure with illegal permission value")
+  }
+  // just larger than largest allowed int
+  if p, ok := ToPermission(int(NonePermission)); p != NonePermission || ok {
+    t.Error("Failure with illegal permission value")
+  }
+  if AllPermission.String() != "All" {
+    t.Error("expected 'All'")
+  }
+  if ReadPermission.String() != "Read" {
+    t.Error("expected 'Read'")
+  }
+  if NonePermission.String() != "None" {
+    t.Error("expected 'None'")
+  }
+}
+
 func verifyParseUSD(t *testing.T, s string, expected int64) {
   output, e := ParseUSD(s)
   if e != nil {
