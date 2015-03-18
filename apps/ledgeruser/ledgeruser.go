@@ -55,8 +55,8 @@ func main() {
       fmt.Println("Need to specify one of -add, -remove, -reset, -list or -changeperm")
       return
     case fAdd:
-      perm := getPermission()
-      if !checkName() || !checkPermission(perm) {
+      perm, ok := getPermission()
+      if !checkName() || !checkPermission(ok) {
         return
       }
       user := fin.User{
@@ -84,8 +84,8 @@ func main() {
         fmt.Printf("An error happened reseting user password - %v\n", err)
       }
     case fChangePerm:
-      perm := getPermission()
-      if !checkName() || !checkPermission(perm) {
+      perm, ok := getPermission()
+      if !checkName() || !checkPermission(ok) {
         return
       }
       err := doer.Do(func(t db.Transaction) (err error) {
@@ -122,24 +122,25 @@ func checkName() bool {
   return true
 }
 
-func checkPermission(p fin.Permission) bool {
-  if p == fin.NonePermission {
-    fmt.Println("Need to specify read or all for the -perm flag.")
+func checkPermission(ok bool) bool {
+  if !ok {
+    fmt.Println("Need to specify read, all, or none for the -perm flag.")
     flag.Usage()
-    return false
   }
-  return true
+  return ok
 }
 
-func getPermission() fin.Permission {
+func getPermission() (fin.Permission, bool) {
   permStr := strings.ToLower(fPermission)
   switch permStr {
   case "read":
-    return fin.ReadPermission
+    return fin.ReadPermission, true
   case "all":
-    return fin.AllPermission
+    return fin.AllPermission, true
+  case "none":
+    return fin.NonePermission, true
   default:
-    return fin.NonePermission
+    return fin.NonePermission, false
   }
 }
 
@@ -158,7 +159,7 @@ func init() {
   flag.StringVar(&fDb, "db", "", "Path to database file")
   flag.StringVar(&fName, "name", "", "User name")
   flag.StringVar(&fPassword, "password", "password", "User password")
-  flag.StringVar(&fPermission, "perm", "all", "User permission: read | all")
+  flag.StringVar(&fPermission, "perm", "all", "User permission: read | all | none")
   flag.BoolVar(&fAdd, "add", false, "Adds user")
   flag.BoolVar(&fRemove, "remove", false, "Removes user")
   flag.BoolVar(&fChangePerm, "changeperm", false, "Changes permission")

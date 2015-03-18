@@ -421,10 +421,8 @@ func (r *rawUser) Pair(ptr interface{}) {
 
 func (r *rawUser) Unmarshall() error {
   r.Password = passwords.Password(r.rawPassword)
-  var ok bool
-  if r.Permission, ok = fin.ToPermission(r.rawPermission); !ok {
-    return errors.New(fmt.Sprintf("for_sqlite: permission value invalid: %d", r.rawPermission))
-  }
+  // Defaults to fin.NonePermission if the raw permission is not recognized
+  r.Permission, _ = fin.ToPermission(r.rawPermission)
   return nil
 }
 

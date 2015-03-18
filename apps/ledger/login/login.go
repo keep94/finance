@@ -61,7 +61,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       http_util.ReportError(w, "Database error", err)
       return
     }
-    if err == findb.NoSuchId || !user.Verify(password) {
+    if err == findb.NoSuchId || !user.Verify(password) || user.Permission == fin.NonePermission {
       http_util.WriteTemplate(w, kTemplate, "Login incorrect.")
       return
     }

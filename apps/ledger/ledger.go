@@ -141,14 +141,13 @@ func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     http_util.ReportError(w, "Error reading database.", err)
     return
   }
-  if session.User == nil {
+  if session.User == nil || !setupStores(session) {
     http_util.Redirect(
         w,
         r,
         http_util.NewUrl("/auth/login", "prev", r.URL.String()).String())
     return
   }
-  setupStores(session)
   logging.SetUserName(r, session.User.Name)
   h.ServeMux.ServeHTTP(w, r)
 }
@@ -186,16 +185,20 @@ func setupDb(filepath string) {
   kReadOnlyQFXLoader = qfx.QFXLoader{qfxdb.ReadOnlyWrapper(qfxdata)}
 }
 
-func setupStores(session *common.UserSession) {
+func setupStores(session *common.UserSession) bool {
   switch (session.User.Permission) {
     case fin.AllPermission:
       session.Store = kStore
       session.Cache = kCatDetailCache
       session.QFXLoader = kQFXLoader
-    default:
+      return true
+    case fin.ReadPermission:
       session.Store = kReadOnlyStore
       session.Cache = kReadOnlyCatDetailCache
       session.QFXLoader = kReadOnlyQFXLoader
+      return true
+    default:
+      return false
   }
 }
 
