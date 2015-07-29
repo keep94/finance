@@ -26,6 +26,11 @@ const (
     kSQLInsertEntry = "insert into entries (date, name, desc, check_no, cats, payment, reviewed) values (?, ?, ?, ?, ?, ?, ?)"
     kSQLUpdateEntry = "update entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ? where id = ?"
     kSQLDeleteEntryById = "delete from entries where id = ?"
+    kSQLRecurringEntryById = "select id, date, name, desc, check_no, cats, payment, reviewed, period, num_left from recurring_entries where id = ?"
+    kSQLRecurringEntries = "select id, date, name, desc, check_no, cats, payment, reviewed, period, num_left from recurring_entries order by id desc"
+    kSQLInsertRecurringEntry = "insert into recurring_entries (date, name, desc, check_no, cats, payment, reviewed, period, num_left) values (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    kSQLUpdateRecurringEntry = "update recurring_entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ?, period = ?, num_left = ? where id = ?"
+    kSQLDeleteRecurringEntryById = "delete from recurring_entries where id = ?"
     kSQLAccountById = "select id, name, is_active, balance, reconciled, b_count, r_count, import_sd from accounts where id = ?"
     kSQLAccounts = "select id, name, is_active, balance, reconciled, b_count, r_count, import_sd from accounts"
     kSQLActiveAccounts = "select id, name, is_active, balance, reconciled, b_count, r_count, import_sd from accounts where is_active = 1 order by name"
@@ -374,6 +379,35 @@ func (r *rawEntry) Marshall() error {
   return nil
 }
 
+
+type rawRecurringEntry struct {
+  *fin.RecurringEntry
+  re rawEntry
+}
+
+func (r *rawRecurringEntry) Ptrs() []interface{} {
+  return []interface{}{&r.Id, &r.re.dateStr, &r.Name, &r.Desc, &r.CheckNo, &r.re.cat, &r.re.payment, &r.re.status, &r.Period, &r.NumLeft}
+}
+
+func (r *rawRecurringEntry) Values() []interface{} {
+  return []interface{}{r.re.dateStr, r.Name, r.Desc, r.CheckNo, r.re.cat, r.re.payment, r.re.status, r.Period, r.NumLeft, r.Id}
+}
+
+func (r *rawRecurringEntry) Pair(ptr interface{}) {
+  p := ptr.(*fin.RecurringEntry)
+  r.RecurringEntry = p
+  r.re.Pair(&p.Entry)
+}
+
+func (r *rawRecurringEntry) Unmarshall() error {
+  return r.re.Unmarshall()
+}
+
+func (r *rawRecurringEntry) Marshall() error {
+  return r.re.Marshall()
+}
+
+
 type rawAccount struct {
   *fin.Account
   importSDStr string
@@ -647,6 +681,50 @@ func (s Store) Users(
   })
 }
 
+func (s Store) AddRecurringEntry(
+    t db.Transaction, entry *fin.RecurringEntry) error {
+  return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
+    return sqlite_db.AddRow(
+        conn, &rawRecurringEntry{}, entry, &entry.Id, kSQLInsertRecurringEntry)
+  })
+}
+
+func (s Store) UpdateRecurringEntry(
+    t db.Transaction, entry *fin.RecurringEntry) error {
+  return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
+    return sqlite_db.UpdateRow(
+        conn, &rawRecurringEntry{}, entry, kSQLUpdateRecurringEntry)
+  })
+}
+
+func (s Store) RecurringEntryById(
+      t db.Transaction, id int64, entry *fin.RecurringEntry) error {
+  return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
+    return sqlite_db.ReadSingle(
+        conn,
+        &rawRecurringEntry{},
+        findb.NoSuchId,
+        entry,
+        kSQLRecurringEntryById,
+        id)
+  })
+}
+
+func (s Store) RecurringEntries(
+    t db.Transaction, consumer functional.Consumer) error {
+  return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
+    return sqlite_db.ReadMultiple(
+        conn, &rawRecurringEntry{}, consumer, kSQLRecurringEntries)
+  })
+}
+
+func (s Store) RemoveRecurringEntryById(t db.Transaction, id int64) error {
+  return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
+    return conn.Exec(kSQLDeleteRecurringEntryById, id)
+  })
+}
+
+
 type ReadOnlyStore struct {
   findb.NoPermissionStore
   store Store
@@ -703,4 +781,14 @@ func (s ReadOnlyStore) UserByName(
 func (s ReadOnlyStore) Users(
     t db.Transaction, consumer functional.Consumer) error {
   return s.store.Users(t, consumer)
+}
+
+func (s ReadOnlyStore) RecurringEntryById(
+      t db.Transaction, id int64, entry *fin.RecurringEntry) error {
+  return s.store.RecurringEntryById(t, id, entry)
+}
+
+func (s ReadOnlyStore) RecurringEntries(
+    t db.Transaction, consumer functional.Consumer) error {
+  return s.store.RecurringEntries(t, consumer)
 }

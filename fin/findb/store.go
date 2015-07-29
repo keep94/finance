@@ -5,6 +5,7 @@ import (
   "errors"
   "github.com/keep94/appcommon/db"
   "github.com/keep94/finance/fin"
+  "github.com/keep94/gofunctional3/consume"
   "github.com/keep94/gofunctional3/functional"
   "time"
 )
@@ -86,6 +87,33 @@ type UnreconciledEntriesRunner interface {
   // Account object is stored; consumer consumes the Stream of Entry values
   UnreconciledEntries(t db.Transaction, acctId int64,
       account *fin.Account, consumer functional.Consumer) error
+}
+
+type AddRecurringEntryRunner interface {
+  // AddRecurringEntry adds a new recurring entry.
+  AddRecurringEntry(t db.Transaction, entry *fin.RecurringEntry) error
+}
+
+type UpdateRecurringEntryRunner interface {
+  // UpdateRecurringEntry updates a recurring entry.
+  UpdateRecurringEntry(t db.Transaction, entry *fin.RecurringEntry) error
+}
+
+type RecurringEntryByIdRunner interface {
+  // RecurringEntryById gets a recurring entry by id.
+  RecurringEntryById(
+      t db.Transaction, id int64, entry *fin.RecurringEntry) error
+}
+
+type RecurringEntriesRunner interface {
+  // RecurringEntries gets all the recurring entries sorted by id
+  // in descending order.
+  RecurringEntries(t db.Transaction, consumer functional.Consumer) error
+}
+
+type RemoveRecurringEntryByIdRunner interface {
+  // RemoveRecurringEntryById removes a recurring entry by id.
+  RemoveRecurringEntryById(t db.Transaction, id int64) error
 }
 
 type AddUserRunner interface {
@@ -209,6 +237,31 @@ func (n NoPermissionStore) UnreconciledEntries(
   return NoPermission
 }
 
+func (n NoPermissionStore) AddRecurringEntry(
+    t db.Transaction, entry *fin.RecurringEntry) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) UpdateRecurringEntry(
+    t db.Transaction, entry *fin.RecurringEntry) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) RecurringEntryById(
+    t db.Transaction, id int64, entry *fin.RecurringEntry) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) RecurringEntries(
+    t db.Transaction, consumer functional.Consumer) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) RemoveRecurringEntryById(
+    t db.Transaction, id int64) error {
+  return NoPermission
+}
+
 func (n NoPermissionStore) AddUser(t db.Transaction, user *fin.User) error {
   return NoPermission
 }
@@ -231,4 +284,44 @@ func (n NoPermissionStore) Users(t db.Transaction, consumer functional.Consumer)
 
 func (n NoPermissionStore) RemoveUserByName(t db.Transaction, name string) error {
   return NoPermission
+}
+
+type RecurringEntriesApplier interface {
+  DoEntryChangesRunner
+  UpdateRecurringEntryRunner
+  RecurringEntriesRunner
+}
+
+// ApplyRecurringEntries applies all outstanding recurring entries.
+// If there are no outstanding recurring entries, this function does
+// nothing. Note that ApplyRecurringEntries is idempotent.
+// t is the database transaction and must be non-nil.
+// store is the database store.
+// currentDate is the current date.
+func ApplyRecurringEntries(
+    t db.Transaction,
+    store RecurringEntriesApplier,
+    currentDate time.Time) error {
+  if t == nil {
+    panic("non nil transaction required.")
+  }
+  var recurringEntries []*fin.RecurringEntry
+  if err := store.RecurringEntries(
+      t, consume.AppendPtrsTo(&recurringEntries, nil)); err != nil {
+    return err
+  }
+  var entries []*fin.Entry
+  for i := range recurringEntries {
+    if recurringEntries[i].Advance(currentDate, &entries) {
+      if err := store.UpdateRecurringEntry(
+          t, recurringEntries[i]); err != nil {
+        return err
+      }
+    }
+  }
+  changes := &EntryChanges{Adds: entries}
+  if err := store.DoEntryChanges(t, changes); err != nil {
+    return err
+  }
+  return nil
 }

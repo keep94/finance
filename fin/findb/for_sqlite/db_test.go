@@ -133,6 +133,12 @@ func TestConcurrentUpdateError(t *testing.T) {
   newEntryAccountFixture(db).ConcurrentUpdateError(t, New(db))
 }
 
+func TestApplyRecurringEntries(t *testing.T) {
+  db := openDb(t)
+  defer closeDb(t, db)
+  newEntryAccountFixture(db).ApplyRecurringEntries(t, New(db))
+}
+
 func TestActiveAccounts(t *testing.T) {
   db := openDb(t)
   defer closeDb(t, db)

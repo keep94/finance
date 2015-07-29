@@ -19,6 +19,10 @@ func SetUpTables(conn *sqlite.Conn) error {
   if err != nil {
     return err
   }
+  err = conn.Exec("create table if not exists recurring_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, name TEXT, cats TEXT, payment TEXT, desc TEXT, check_no TEXT, reviewed INTEGER, period INTEGER, num_left INTEGER)")
+  if err != nil {
+    return err
+  }
   err = conn.Exec("create table if not exists expense_categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, is_active INTEGER, parent_id INTEGER)")
   if err != nil {
     return err

@@ -83,6 +83,16 @@ type RemoveAccountStore interface {
   findb.RemoveAccountRunner
 }
 
+type RecurringEntriesApplier interface {
+  findb.RecurringEntriesApplier
+  findb.AddRecurringEntryRunner
+  findb.RecurringEntryByIdRunner
+  findb.AddAccountRunner
+  findb.EntriesByAccountIdRunner
+  findb.RemoveRecurringEntryByIdRunner
+}
+
+
 func (f EntryAccountFixture) AccountUpdates(t *testing.T, store AccountByIdStore) {
   f.createAccounts(t, store)
   cpb := fin.CatPaymentBuilder{}
@@ -494,6 +504,55 @@ func (f EntryAccountFixture) RemoveAccount(
   }
 }
 
+func (f EntryAccountFixture) ApplyRecurringEntries(
+    t *testing.T,
+    store RecurringEntriesApplier) {
+  f.createAccounts(t, store)
+
+  infiniteId := addRecurringEntry(
+      t, store, date_util.YMD(2015, 8, 10), 4700, 20)
+  finiteId := addRecurringEntry(
+      t, store, date_util.YMD(2015, 8, 20), 3100, 2)
+  christmasId := addRecurringEntry(
+      t, store, date_util.YMD(2015, 12, 25), 2900, -1)
+
+  // Make sure fetching entries is sorted by ID in descending order
+  var addedEntries []*fin.RecurringEntry
+  if err := store.RecurringEntries(
+      nil, consume.AppendPtrsTo(&addedEntries, nil)); err != nil {
+    t.Fatalf("Error fetching recurring entries: %v", err)
+  }
+  verifyRecurringEntriesSortedByIdDesc(t, addedEntries)
+
+  // Apply recurring entries
+  err := f.Doer.Do(func (t db.Transaction) error {
+    return findb.ApplyRecurringEntries(t, store, date_util.YMD(2015, 11, 10))
+  })
+  if err != nil {
+    t.Fatalf("Error applying recurring entries.")
+  }
+
+  // Verify recurring entries
+  verifyRecurringEntry(t, store, infiniteId, date_util.YMD(2015, 12, 10), 16)
+  verifyRecurringEntry(t, store, finiteId, date_util.YMD(2015, 10, 20), 0)
+  verifyRecurringEntry(t, store, christmasId, date_util.YMD(2015, 12, 25), -1)
+
+  // verify entries
+  verifyEntryDates(t, store, 1,
+      -25000, 6,
+      date_util.YMD(2015, 11, 10), date_util.YMD(2015, 10, 10),
+      date_util.YMD(2015, 9, 20), date_util.YMD(2015, 9, 10),
+      date_util.YMD(2015, 8, 20), date_util.YMD(2015, 8, 10))
+
+  // Test removing recurring entries
+  deleteRecurringEntry(t, store, infiniteId)
+  verifyNoRecurringEntry(t, store, infiniteId)
+  deleteRecurringEntry(t, store, finiteId)
+  verifyNoRecurringEntry(t, store, finiteId)
+  deleteRecurringEntry(t, store, christmasId)
+  verifyNoRecurringEntry(t, store, christmasId)
+}
+
 func (f EntryAccountFixture) createAccounts(t *testing.T, store findb.AddAccountRunner) {
   err := f.Doer.Do(func (t db.Transaction) error {
     err := store.AddAccount(t, &fin.Account{
@@ -566,6 +625,37 @@ func changeEntries(
   err := store.DoEntryChanges(nil, ec)
   if err != nil {
     t.Fatalf("Got error changing entries %v", err)
+  }
+}
+
+func initRecurringEntry(
+    date time.Time, amount int64, numLeft int, entry *fin.RecurringEntry) {
+  entry.Date = date
+  entry.NumLeft = numLeft
+  entry.CatPayment = fin.NewCatPayment(fin.Expense, amount, false, 1)
+}
+
+func addRecurringEntry(
+    t *testing.T,
+    store findb.AddRecurringEntryRunner,
+    date time.Time,
+    amount int64,
+    numLeft int) int64 {
+  var entry fin.RecurringEntry
+  initRecurringEntry(
+      date, amount, numLeft, &entry)
+  if err := store.AddRecurringEntry(nil, &entry); err != nil {
+    t.Fatalf("Error creating recurring entries: %v", err)
+  }
+  return entry.Id
+}
+
+func deleteRecurringEntry(
+    t *testing.T,
+    store findb.RemoveRecurringEntryByIdRunner,
+    id int64) {
+  if err := store.RemoveRecurringEntryById(nil, id); err != nil {
+    t.Fatalf("Error removing recurring entry: %v", err)
   }
 }
 
@@ -691,6 +781,77 @@ func verifyEntriesSorted(t *testing.T, entries []fin.Entry) {
     if entries[i].Date == entries[i - 1].Date && entries[i].Id > entries[i - 1].Id {
       t.Error("Entries not sorted correctly.")
     }
+  }
+}
+
+func verifyRecurringEntriesSortedByIdDesc(
+    t *testing.T, entries []*fin.RecurringEntry) {
+  length := len(entries)
+  for i := 1; i < length; i++ {
+    if entries[i].Id > entries[i - 1].Id {
+      t.Error("Recurring entries not sorted correctly.")
+    }
+  }
+}
+
+func verifyRecurringEntry(
+    t *testing.T,
+    store findb.RecurringEntryByIdRunner,
+    id int64,
+    expectedDate time.Time,
+    expectedNumLeft int) {
+  var entry fin.RecurringEntry
+  if err := store.RecurringEntryById(nil, id, &entry); err != nil {
+    t.Fatalf("Error retrieving recurring entry %d: %v", id, err)
+  }
+  if entry.Date != expectedDate {
+    t.Errorf("Expected date %v, got %v", expectedDate, entry.Date)
+  }
+  if entry.NumLeft != expectedNumLeft {
+    t.Errorf("Expected NumLeft %d, got %d", expectedNumLeft, entry.NumLeft)
+  }
+}
+
+func verifyNoRecurringEntry(
+    t *testing.T,
+    store findb.RecurringEntryByIdRunner,
+    id int64) {
+  var entry fin.RecurringEntry
+  if err := store.RecurringEntryById(nil, id, &entry); err != findb.NoSuchId {
+    t.Errorf("Expected error findb.NoSuchId, got %v", err)
+  }
+}
+
+func verifyEntryDates(
+    t *testing.T,
+    store findb.EntriesByAccountIdRunner,
+    accountId int64,
+    expectedAccountBalance int64,
+    expectedCount int,
+    expectedDates ...time.Time) {
+  var entries []*fin.EntryBalance
+  var account fin.Account
+  if err := store.EntriesByAccountId(
+      nil,
+      accountId,
+      &account,
+      consume.AppendPtrsTo(&entries, nil)); err != nil {
+    t.Fatalf("Error retrieving added entries: %v", err)
+  }
+  if len(expectedDates) != len(entries) {
+    t.Errorf("Expected %d entries, got %d", len(expectedDates), len(entries))
+    return
+  }
+  for i := range entries {
+    if entries[i].Date != expectedDates[i] {
+      t.Errorf("Expected %v, got %v", expectedDates[i], entries[i].Date)
+    }
+  }
+  if expectedAccountBalance != account.Balance {
+    t.Errorf("Expected %v, got %v", expectedAccountBalance, account.Balance)
+  }
+  if expectedCount != account.Count {
+    t.Errorf("Expected %v, got %v", expectedCount, account.Count)
   }
 }
 
