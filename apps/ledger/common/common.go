@@ -157,6 +157,28 @@ func (e EntryLinker) NewEntryLink(paymentId int64) *url.URL {
       "prev", e.URL.String())
 }
 
+// RecurringEntryLinker creates URLs to the edit recurring entry page.
+type RecurringEntryLinker struct {
+  URL *url.URL
+}
+
+// EntryLink returns a URL to the edit recurring entry page.
+// id is the id of the recurring entry to be edited.
+func (e RecurringEntryLinker) EntryLink(id int64) *url.URL {
+  return http_util.NewUrl(
+      "/fin/recurringsingle",
+      "id", strconv.FormatInt(id, 10),
+      "prev", e.URL.String())
+}
+
+// NewEntryLink returns a URL to the edit recurring entry page
+// for creating a new recurring entry.
+func (e RecurringEntryLinker) NewEntryLink() *url.URL {
+  return http_util.NewUrl(
+      "/fin/recurringsingle",
+      "prev", e.URL.String())
+}
+
 // CatDisplayer is used to display categories.
 type CatDisplayer struct {
   categories.CatDetailStore

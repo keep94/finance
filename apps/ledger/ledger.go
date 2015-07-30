@@ -20,6 +20,8 @@ import (
   "github.com/keep94/finance/apps/ledger/list"
   "github.com/keep94/finance/apps/ledger/login"
   "github.com/keep94/finance/apps/ledger/logout"
+  "github.com/keep94/finance/apps/ledger/recurringlist"
+  "github.com/keep94/finance/apps/ledger/recurringsingle"
   "github.com/keep94/finance/apps/ledger/report"
   "github.com/keep94/finance/apps/ledger/single"
   "github.com/keep94/finance/apps/ledger/static"
@@ -92,9 +94,15 @@ func main() {
       "/fin/list",
       &list.Handler{Store: kStore, Cdc: kCatDetailCache, PageSize: kPageSize})
   mux.Handle(
+      "/fin/recurringlist",
+      &recurringlist.Handler{Store: kStore, Cdc: kCatDetailCache})
+  mux.Handle(
       "/fin/account",
       &account.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})
   mux.Handle("/fin/single", &single.Handler{Doer: kDoer, Clock: kClock})
+  mux.Handle(
+      "/fin/recurringsingle",
+      &recurringsingle.Handler{Doer: kDoer, Clock: kClock})
   mux.Handle("/fin/catedit", &catedit.Handler{})
   mux.Handle("/fin/logout", &logout.Handler{})
   mux.Handle("/fin/chpasswd", &chpasswd.Handler{Store: kStore, Doer: kDoer})
