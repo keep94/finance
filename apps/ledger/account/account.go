@@ -30,6 +30,7 @@ var (
 {{with $top := .}}
 <a href="{{.NewEntryLink .Account.Id}}">New Entry</a>&nbsp;
 <a href="{{.UploadLink .Account.Id}}">Import Entries</a>&nbsp;
+<a href="{{.RecurringLink .Account.Id}}">Recurring Entries</a>&nbsp;
 {{if .Account.HasUnreconciled}}
 <a href="{{.UnreconciledLink .Account.Id}}">Unreconciled</a>
 {{end}}

@@ -204,8 +204,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   session := common.GetUserSession(r)
   store := session.Store.(Store)
   id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
+  paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
   if r.Method == "GET" {
-    h.doGet(w, id, store, session.Cache)
+    h.doGet(w, id, paymentId, store, session.Cache)
   } else {
     h.doPost(w, r, id, store, session.Cache)
   }
@@ -255,7 +256,7 @@ func (h *Handler) doPost(
 }
 
 func (h *Handler) doGet(
-    w http.ResponseWriter, id int64,
+    w http.ResponseWriter, id, paymentId int64,
     store findb.RecurringEntryByIdRunner, cdc categoriesdb.Getter) {
   var v *view
   if isIdValid(id) {
@@ -280,6 +281,9 @@ func (h *Handler) doGet(
   } else {
     cds, _ := cdc.Get(nil)
     values := make(url.Values)
+    if paymentId > 0 {
+      values.Set("payment", strconv.FormatInt(paymentId, 10))
+    }
     v = toViewFromForm(false, values, cds, nil)
   }
   http_util.WriteTemplate(w, kTemplate, v)

@@ -132,6 +132,14 @@ func (a AccountLinker) UploadLink(id int64) *url.URL {
       "acctId", strconv.FormatInt(id, 10))
 }
 
+// RecurringLink returns a URL to the recurring entries page for a given
+// account Id.
+func (a AccountLinker) RecurringLink(id int64) *url.URL {
+  return http_util.NewUrl(
+      "/fin/recurringlist",
+      "acctId", strconv.FormatInt(id, 10))
+}
+
 // EntryLinker creates URLs to the edit entry page.
 type EntryLinker struct {
   URL *url.URL
@@ -171,11 +179,14 @@ func (e RecurringEntryLinker) EntryLink(id int64) *url.URL {
       "prev", e.URL.String())
 }
 
-// NewEntryLink returns a URL to the edit recurring entry page
-// for creating a new recurring entry.
-func (e RecurringEntryLinker) NewEntryLink() *url.URL {
+// NewEntryLink returns a URL to the edit recurring entry page for creating a
+// new recurring entry. paymentId is the account ID of the default payment type.
+// Passing 0 or a negative number means that user will have to select
+// payment in the edit recurring entry page.
+func (e RecurringEntryLinker) NewEntryLink(paymentId int64) *url.URL {
   return http_util.NewUrl(
       "/fin/recurringsingle",
+      "aid", strconv.FormatInt(paymentId, 10),
       "prev", e.URL.String())
 }
 

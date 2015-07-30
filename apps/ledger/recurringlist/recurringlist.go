@@ -8,8 +8,10 @@ import (
   "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/findb"
   "github.com/keep94/gofunctional3/consume"
+  "github.com/keep94/gofunctional3/functional"
   "html/template"
   "net/http"
+  "strconv"
 )
 
 var (
@@ -19,7 +21,7 @@ var (
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
-<a href="{{.NewEntryLink}}">New Recurring Entry</a>
+<a href="{{.NewEntryLink .AccountId}}">New Recurring Entry</a>
 <br><br>   
 {{with $top := .}}
   <table>
@@ -65,9 +67,22 @@ type Handler struct {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
+  acctId, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
   cds, _ := h.Cdc.Get(nil)
   var entries []*fin.RecurringEntry
-  err := h.Store.RecurringEntries(nil, consume.AppendPtrsTo(&entries, nil))
+  consumer := consume.AppendPtrsTo(&entries, nil)
+  if acctId > 0 {
+    consumer = functional.FilterConsumer(
+        consumer,
+        functional.NewFilterer(func(ptr interface{}) error {
+          p := ptr.(*fin.RecurringEntry)
+          if !p.WithPayment(acctId) {
+            return functional.Skipped
+          }
+          return nil
+        }))
+  }
+  err := h.Store.RecurringEntries(nil, consumer)
   if err != nil {
     http_util.ReportError(w, "Error reading database.", err)
     return
@@ -78,13 +93,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       &view{
           common.CatDisplayer{cds},
           common.RecurringEntryLinker{r.URL},
-          entries})
+          entries,
+          acctId})
 }
 
 type view struct {
   common.CatDisplayer
   common.RecurringEntryLinker
   Values []*fin.RecurringEntry
+  AccountId int64
 }
 
 func (v *view) NumLeft(numLeft int) string {
