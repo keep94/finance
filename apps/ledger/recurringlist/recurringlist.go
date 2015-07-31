@@ -2,6 +2,7 @@ package recurringlist
 
 import (
   "fmt"
+  "github.com/keep94/appcommon/date_util"
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
@@ -12,6 +13,7 @@ import (
   "html/template"
   "net/http"
   "strconv"
+  "time"
 )
 
 var (
@@ -21,8 +23,14 @@ var (
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
-<a href="{{.NewEntryLink .AccountId}}">New Recurring Entry</a>
-<br><br>   
+<a href="{{.NewEntryLink .AccountId}}">New Recurring Entry</a><br><br>
+{{if .EntriesToAddCount}}
+  <form method="POST" action="/fin/applyrecurring">
+    Today is <b>{{FormatDate .Today}}</b>.<br>
+    Apply ALL recurring entries which will create {{.EntriesToAddCount}} new entries?
+    <input type="submit" value="YES">
+  </form>
+{{end}}
 {{with $top := .}}
   <table>
     <tr>
@@ -63,6 +71,7 @@ var (
 type Handler struct {
   Cdc categoriesdb.Getter
   Store findb.RecurringEntriesRunner
+  Clock date_util.Clock
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -87,14 +96,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     http_util.ReportError(w, "Error reading database.", err)
     return
   }
+  currentDate := date_util.TimeToDate(h.Clock.Now())
+  count, err := findb.ApplyRecurringEntriesDryRun(nil, h.Store, currentDate)
+  if err != nil {
+    http_util.ReportError(
+        w, "Error doing apply recurring entries dry run.", err)
+    return
+  }
   http_util.WriteTemplate(
       w,
       kTemplate,
       &view{
-          common.CatDisplayer{cds},
-          common.RecurringEntryLinker{r.URL},
-          entries,
-          acctId})
+          CatDisplayer: common.CatDisplayer{cds},
+          RecurringEntryLinker: common.RecurringEntryLinker{r.URL},
+          Values: entries,
+          AccountId: acctId,
+          Today: currentDate,
+          EntriesToAddCount: count})
 }
 
 type view struct {
@@ -102,6 +120,8 @@ type view struct {
   common.RecurringEntryLinker
   Values []*fin.RecurringEntry
   AccountId int64
+  Today time.Time
+  EntriesToAddCount int
 }
 
 func (v *view) NumLeft(numLeft int) string {

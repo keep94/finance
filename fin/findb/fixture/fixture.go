@@ -527,12 +527,52 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   }
   verifyRecurringEntriesSortedByIdDesc(t, addedEntries)
 
+  // Do dry run
+  count, err := findb.ApplyRecurringEntriesDryRun(nil, store, date_util.YMD(2015, 11, 10))
+  if err != nil {
+    t.Errorf("Got database error doing dry run: %v", err)
+  }
+  if count != 10 {
+    t.Errorf("Expected that 10 entries will be added, got %d", count)
+  }
+
   // Apply recurring entries
-  err := f.Doer.Do(func (t db.Transaction) error {
-    return findb.ApplyRecurringEntries(t, store, date_util.YMD(2015, 11, 10))
+  count = 0
+  err = f.Doer.Do(func (t db.Transaction) error {
+    var err error
+    count, err = findb.ApplyRecurringEntries(t, store, date_util.YMD(2015, 11, 10))
+    return err
   })
   if err != nil {
     t.Fatalf("Error applying recurring entries.")
+  }
+  if count != 10 {
+    t.Errorf("Expected 10 entries to be added, got %d", count)
+  }
+
+  // Test idempotency
+
+  // Do dry run
+  count, err = findb.ApplyRecurringEntriesDryRun(nil, store, date_util.YMD(2015, 11, 10))
+  if err != nil {
+    t.Errorf("Got database error doing dry run: %v", err)
+  }
+  if count != 0 {
+    t.Errorf("Expected that 0 entries will be added, got %d", count)
+  }
+
+  // Apply recurring entries
+  count = 657
+  err = f.Doer.Do(func (t db.Transaction) error {
+    var err error
+    count, err = findb.ApplyRecurringEntries(t, store, date_util.YMD(2015, 11, 10))
+    return err
+  })
+  if err != nil {
+    t.Fatalf("Error applying recurring entries.")
+  }
+  if count != 0 {
+    t.Errorf("Expected 0 entries to be added, got %d", count)
   }
 
   // Verify recurring entries

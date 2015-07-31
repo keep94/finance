@@ -12,6 +12,7 @@ import (
   "github.com/keep94/appcommon/logging"
   "github.com/keep94/finance/apps/ledger/ac"
   "github.com/keep94/finance/apps/ledger/account"
+  "github.com/keep94/finance/apps/ledger/applyrecurring"
   "github.com/keep94/finance/apps/ledger/catedit"
   "github.com/keep94/finance/apps/ledger/chpasswd"
   "github.com/keep94/finance/apps/ledger/common"
@@ -94,8 +95,12 @@ func main() {
       "/fin/list",
       &list.Handler{Store: kStore, Cdc: kCatDetailCache, PageSize: kPageSize})
   mux.Handle(
+      "/fin/applyrecurring",
+      &applyrecurring.Handler{Doer: kDoer, Clock: kClock})
+  mux.Handle(
       "/fin/recurringlist",
-      &recurringlist.Handler{Store: kStore, Cdc: kCatDetailCache})
+      &recurringlist.Handler{
+          Store: kStore, Cdc: kCatDetailCache, Clock: kClock})
   mux.Handle(
       "/fin/account",
       &account.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})

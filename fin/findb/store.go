@@ -292,6 +292,20 @@ type RecurringEntriesApplier interface {
   RecurringEntriesRunner
 }
 
+// ApplyRecurringEntriesDryRun returns out how many new entries would be
+// added to the database if ApplyRecurringEntries were run.
+// t is the database transaction.
+// store is the database store.
+// currentDate is the current date.
+func ApplyRecurringEntriesDryRun(
+    t db.Transaction,
+    store RecurringEntriesRunner,
+    currentDate time.Time) (int, error) {
+  _, entriesToAdd, err := applyRecurringEntriesDryRun(t, store, currentDate)
+  return len(entriesToAdd), err
+}
+
+
 // ApplyRecurringEntries applies all outstanding recurring entries.
 // If there are no outstanding recurring entries, this function does
 // nothing. Note that ApplyRecurringEntries is idempotent.
@@ -301,27 +315,46 @@ type RecurringEntriesApplier interface {
 func ApplyRecurringEntries(
     t db.Transaction,
     store RecurringEntriesApplier,
-    currentDate time.Time) error {
+    currentDate time.Time) (int, error) {
   if t == nil {
     panic("non nil transaction required.")
   }
-  var recurringEntries []*fin.RecurringEntry
-  if err := store.RecurringEntries(
-      t, consume.AppendPtrsTo(&recurringEntries, nil)); err != nil {
-    return err
+  recurringEntries, entries, err := applyRecurringEntriesDryRun(
+      t, store, currentDate)
+  if err != nil {
+    return 0, err
   }
-  var entries []*fin.Entry
   for i := range recurringEntries {
-    if recurringEntries[i].Advance(currentDate, &entries) {
-      if err := store.UpdateRecurringEntry(
-          t, recurringEntries[i]); err != nil {
-        return err
-      }
+    if err := store.UpdateRecurringEntry(
+        t, recurringEntries[i]); err != nil {
+      return 0, err
     }
   }
   changes := &EntryChanges{Adds: entries}
   if err := store.DoEntryChanges(t, changes); err != nil {
-    return err
+    return 0, err
   }
-  return nil
+  return len(entries), nil
+}
+
+func applyRecurringEntriesDryRun(
+    t db.Transaction,
+    store RecurringEntriesRunner,
+    currentDate time.Time) (
+        recurringEntriesToUpdate []*fin.RecurringEntry,
+        entriesToAdd []*fin.Entry,
+        err error) {
+  if err = store.RecurringEntries(
+      t, consume.AppendPtrsTo(&recurringEntriesToUpdate, nil)); err != nil {
+    return
+  }
+  idx := 0
+  for i := range recurringEntriesToUpdate {
+    if recurringEntriesToUpdate[i].Advance(currentDate, &entriesToAdd) {
+      recurringEntriesToUpdate[idx] = recurringEntriesToUpdate[i]
+      idx++
+    }
+  }
+  recurringEntriesToUpdate = recurringEntriesToUpdate[:idx]
+  return
 }
