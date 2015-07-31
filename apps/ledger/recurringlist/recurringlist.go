@@ -44,7 +44,7 @@ var (
         <td>
           {{if .CheckNo}}{{.CheckNo}}{{else}}&nbsp;{{end}}
         </td>
-        <td>Every {{.Period}} months</td>
+        <td>Every {{.Period.Count}} {{.Period.Unit}}</td>
         <td>{{$top.NumLeft .NumLeft}}</td>
         <td colspan=2>{{.Desc}}</td>
       </tr>

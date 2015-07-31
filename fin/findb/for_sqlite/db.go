@@ -26,10 +26,10 @@ const (
     kSQLInsertEntry = "insert into entries (date, name, desc, check_no, cats, payment, reviewed) values (?, ?, ?, ?, ?, ?, ?)"
     kSQLUpdateEntry = "update entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ? where id = ?"
     kSQLDeleteEntryById = "delete from entries where id = ?"
-    kSQLRecurringEntryById = "select id, date, name, desc, check_no, cats, payment, reviewed, period, num_left from recurring_entries where id = ?"
-    kSQLRecurringEntries = "select id, date, name, desc, check_no, cats, payment, reviewed, period, num_left from recurring_entries order by id desc"
-    kSQLInsertRecurringEntry = "insert into recurring_entries (date, name, desc, check_no, cats, payment, reviewed, period, num_left) values (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    kSQLUpdateRecurringEntry = "update recurring_entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ?, period = ?, num_left = ? where id = ?"
+    kSQLRecurringEntryById = "select id, date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left from recurring_entries where id = ?"
+    kSQLRecurringEntries = "select id, date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left from recurring_entries order by id desc"
+    kSQLInsertRecurringEntry = "insert into recurring_entries (date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    kSQLUpdateRecurringEntry = "update recurring_entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ?, count = ?, unit = ?, num_left = ? where id = ?"
     kSQLDeleteRecurringEntryById = "delete from recurring_entries where id = ?"
     kSQLAccountById = "select id, name, is_active, balance, reconciled, b_count, r_count, import_sd from accounts where id = ?"
     kSQLAccounts = "select id, name, is_active, balance, reconciled, b_count, r_count, import_sd from accounts"
@@ -383,14 +383,15 @@ func (r *rawEntry) Marshall() error {
 type rawRecurringEntry struct {
   *fin.RecurringEntry
   re rawEntry
+  unit int
 }
 
 func (r *rawRecurringEntry) Ptrs() []interface{} {
-  return []interface{}{&r.Id, &r.re.dateStr, &r.Name, &r.Desc, &r.CheckNo, &r.re.cat, &r.re.payment, &r.re.status, &r.Period, &r.NumLeft}
+  return []interface{}{&r.Id, &r.re.dateStr, &r.Name, &r.Desc, &r.CheckNo, &r.re.cat, &r.re.payment, &r.re.status, &r.Period.Count, &r.unit, &r.NumLeft}
 }
 
 func (r *rawRecurringEntry) Values() []interface{} {
-  return []interface{}{r.re.dateStr, r.Name, r.Desc, r.CheckNo, r.re.cat, r.re.payment, r.re.status, r.Period, r.NumLeft, r.Id}
+  return []interface{}{r.re.dateStr, r.Name, r.Desc, r.CheckNo, r.re.cat, r.re.payment, r.re.status, r.Period.Count, r.unit, r.NumLeft, r.Id}
 }
 
 func (r *rawRecurringEntry) Pair(ptr interface{}) {
@@ -399,14 +400,24 @@ func (r *rawRecurringEntry) Pair(ptr interface{}) {
   r.re.Pair(&p.Entry)
 }
 
-func (r *rawRecurringEntry) Unmarshall() error {
-  return r.re.Unmarshall()
+func (r *rawRecurringEntry) Unmarshall() (err error) {
+  if err = r.re.Unmarshall(); err != nil {
+    return
+  }
+  var valid bool
+  if r.Period.Unit, valid = fin.ToRecurringUnit(r.unit); !valid {
+    err = errors.New("Invalid recurring unit found in database.")
+  }
+  return
 }
 
-func (r *rawRecurringEntry) Marshall() error {
-  return r.re.Marshall()
+func (r *rawRecurringEntry) Marshall() (err error) {
+  if err = r.re.Marshall(); err != nil {
+    return
+  }
+  r.unit = r.Period.Unit.ToInt()
+  return
 }
-
 
 type rawAccount struct {
   *fin.Account

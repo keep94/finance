@@ -23,6 +23,27 @@ const (
   kSessionCookieName = "session-cookie"
 )
 
+type RecurringUnitComboBoxType []fin.RecurringUnit
+
+func (r RecurringUnitComboBoxType) ToSelection(s string) *http_util.Selection {
+  ivalue, err := strconv.Atoi(s)
+  if err != nil {
+    return nil
+  }
+  value, ok := fin.ToRecurringUnit(ivalue)
+  if !ok {
+    return nil
+  }
+  return &http_util.Selection{Name: value.String(), Value: s}
+}
+
+var (
+  // Represents the combo box for recurring units.
+  // Implements http_util.SelectionModel
+  RecurringUnitComboBox = RecurringUnitComboBoxType{
+      fin.Months, fin.Years, fin.Days, fin.Weeks}
+)
+
 // NewGorillaSession creates a gorilla session for the finance app
 func NewGorillaSession(
     sessionStore sessions.Store, r *http.Request) (*sessions.Session, error) {

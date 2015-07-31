@@ -104,7 +104,16 @@ body {
   </tr>
   <tr>
     <td align="right">Period: </td>
-    <td><input type="text" name="period" value="{{.Get "period"}}">&nbsp;months</td>
+    <td><input type="text" name="count" value="{{.Get "count"}}">&nbsp;
+      <select name="unit">
+        {{with .GetSelection .RecurringUnitModel "unit"}}
+          <option value="{{.Value}}">{{.Name}}
+        {{end}}
+        {{range .RecurringUnitModel}}
+          <option value="{{.ToInt}}">{{.}}
+        {{end}}
+      </select>
+    </td>
   <tr>
   <tr>
     <td align="right">Remaining: </td>
@@ -310,6 +319,7 @@ func (h *Handler) updateId(
 
 type view struct {
   *common.SingleEntryView
+  RecurringUnitModel common.RecurringUnitComboBoxType
 }
 
 func isIdValid(id int64) bool {
@@ -318,9 +328,10 @@ func isIdValid(id int64) bool {
 
 func toView(
     entry *fin.RecurringEntry, cds categories.CatDetailStore) *view {
-  result := &view{}
+  result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
   result.SingleEntryView = common.ToSingleEntryView(&entry.Entry, cds)
-  result.Set("period", strconv.Itoa(entry.Period))
+  result.Set("count", strconv.Itoa(entry.Period.Count))
+  result.Set("unit", strconv.Itoa(entry.Period.Unit.ToInt()))
   if entry.NumLeft >= 0 {
     result.Set("remaining", strconv.Itoa(entry.NumLeft))
   }
@@ -333,7 +344,7 @@ func toViewFromForm(
     values url.Values,
     cds categories.CatDetailStore,
     err error) *view {
-  result := &view{}
+  result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
   result.SingleEntryView = common.ToSingleEntryViewFromForm(
       existingEntry, values, cds, err)
   return result
@@ -344,19 +355,30 @@ func entryMutation(values url.Values) (mutation functional.Filterer, err error) 
   if entryFilterer, err = common.EntryMutation(values); err != nil {
     return
   }
-  periodStr := values.Get("period")
-  var period int
-  if periodStr == "" {
-    period = 1
+  countStr := values.Get("count")
+  var count int
+  if countStr == "" {
+    count = 1
   } else {
-    if period, err = strconv.Atoi(periodStr); err != nil {
+    if count, err = strconv.Atoi(countStr); err != nil {
       return
     }
-    if period < 1 {
+    if count < 1 {
       err = errors.New("Period must be at least 1.")
       return
     }
   }
+  unitStr := values.Get("unit")
+  var iunit int
+  if iunit, err = strconv.Atoi(unitStr); err != nil {
+    return
+  }
+  unit, ok := fin.ToRecurringUnit(iunit)
+  if !ok {
+    err = errors.New("Invalid recurring unit.")
+    return
+  }
+
   numLeftStr := values.Get("remaining")
   var numLeft int
   if numLeftStr == "" {
@@ -374,7 +396,8 @@ func entryMutation(values url.Values) (mutation functional.Filterer, err error) 
     p := ptr.(*fin.RecurringEntry)
     entryFilterer.Filter(&p.Entry)
     p.CheckNo = ""
-    p.Period = period
+    p.Period.Count = count
+    p.Period.Unit = unit
     p.NumLeft = numLeft
     return nil
   })

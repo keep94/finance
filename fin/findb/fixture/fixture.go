@@ -515,6 +515,9 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
       t, store, date_util.YMD(2015, 8, 20), 3100, 2)
   christmasId := addRecurringEntry(
       t, store, date_util.YMD(2015, 12, 25), 2900, -1)
+  everyTwoWeeksId := addRecurringEntryWithPeriod(
+      t, store, date_util.YMD(2015, 9, 24),
+      14, fin.Days, 5900, -1)
 
   // Make sure fetching entries is sorted by ID in descending order
   var addedEntries []*fin.RecurringEntry
@@ -536,11 +539,14 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   verifyRecurringEntry(t, store, infiniteId, date_util.YMD(2015, 12, 10), 16)
   verifyRecurringEntry(t, store, finiteId, date_util.YMD(2015, 10, 20), 0)
   verifyRecurringEntry(t, store, christmasId, date_util.YMD(2015, 12, 25), -1)
+  verifyRecurringEntry(t, store, everyTwoWeeksId, date_util.YMD(2015, 11, 19), -1)
 
   // verify entries
   verifyEntryDates(t, store, 1,
-      -25000, 6,
-      date_util.YMD(2015, 11, 10), date_util.YMD(2015, 10, 10),
+      -48600, 10,
+      date_util.YMD(2015, 11, 10), date_util.YMD(2015, 11, 5),
+      date_util.YMD(2015, 10, 22), date_util.YMD(2015, 10, 10),
+      date_util.YMD(2015, 10, 8), date_util.YMD(2015, 9, 24),
       date_util.YMD(2015, 9, 20), date_util.YMD(2015, 9, 10),
       date_util.YMD(2015, 8, 20), date_util.YMD(2015, 8, 10))
 
@@ -551,6 +557,8 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   verifyNoRecurringEntry(t, store, finiteId)
   deleteRecurringEntry(t, store, christmasId)
   verifyNoRecurringEntry(t, store, christmasId)
+  deleteRecurringEntry(t, store, everyTwoWeeksId)
+  verifyNoRecurringEntry(t, store, everyTwoWeeksId)
 }
 
 func (f EntryAccountFixture) createAccounts(t *testing.T, store findb.AddAccountRunner) {
@@ -629,8 +637,11 @@ func changeEntries(
 }
 
 func initRecurringEntry(
-    date time.Time, amount int64, numLeft int, entry *fin.RecurringEntry) {
+    date time.Time, count int, unit fin.RecurringUnit,
+    amount int64, numLeft int, entry *fin.RecurringEntry) {
   entry.Date = date
+  entry.Period.Count = count
+  entry.Period.Unit = unit
   entry.NumLeft = numLeft
   entry.CatPayment = fin.NewCatPayment(fin.Expense, amount, false, 1)
 }
@@ -641,9 +652,20 @@ func addRecurringEntry(
     date time.Time,
     amount int64,
     numLeft int) int64 {
+  return addRecurringEntryWithPeriod(
+      t, store, date, 1, fin.Months, amount, numLeft)
+}
+func addRecurringEntryWithPeriod(
+    t *testing.T,
+    store findb.AddRecurringEntryRunner,
+    date time.Time,
+    count int,
+    unit fin.RecurringUnit,
+    amount int64,
+    numLeft int) int64 {
   var entry fin.RecurringEntry
   initRecurringEntry(
-      date, amount, numLeft, &entry)
+      date, count, unit, amount, numLeft, &entry)
   if err := store.AddRecurringEntry(nil, &entry); err != nil {
     t.Fatalf("Error creating recurring entries: %v", err)
   }
