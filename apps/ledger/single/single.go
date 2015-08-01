@@ -5,7 +5,6 @@ import (
   "fmt"
   "github.com/keep94/appcommon/date_util"
   "github.com/keep94/appcommon/db"
-  "github.com/keep94/appcommon/etag"
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
@@ -17,16 +16,7 @@ import (
   "net/http"
   "net/url"
   "strconv"
-  "strings"
   "time"
-)
-
-const (
-  kMaxSplits = 10
-)
-
-var (
-  kDateMayBeWrong = errors.New("Date may be wrong, proceed anyway?")
 )
 
 var (
@@ -185,7 +175,6 @@ body {
 
 var (
   kTemplate *template.Template
-  kSplits []split
 )
 
 // Store methods are from fin.Store
@@ -225,7 +214,7 @@ func (h *Handler) doPost(
   } else {
     // Save button
     var mutation functional.Filterer
-    mutation, err = entryMutation(r.Form)
+    mutation, err = common.EntryMutation(r.Form)
     if err == nil {
       if isIdValid(id) {
         tag, _ := strconv.ParseUint(r.Form.Get("etag"), 10, 32)
@@ -239,7 +228,7 @@ func (h *Handler) doPost(
           if h.isDateReasonable(entry.Date) {
             err = add(&entry, store)
           } else {
-            err = kDateMayBeWrong
+            err = common.ErrDateMayBeWrong
           }
         } else {
           err = add(&entry, store)
@@ -253,7 +242,10 @@ func (h *Handler) doPost(
     }
     cds, _ := cdc.Get(nil)
     http_util.WriteTemplate(
-        w, kTemplate, toViewFromForm(isIdValid(id), r.Form, cds, err))
+        w,
+        kTemplate,
+        common.ToSingleEntryViewFromForm(
+            isIdValid(id), r.Form, cds, err))
   } else {
     http_util.Redirect(w, r, r.Form.Get("prev"))
   }
@@ -262,7 +254,7 @@ func (h *Handler) doPost(
 func (h *Handler) doGet(
     w http.ResponseWriter, id, paymentId int64,
     store findb.EntryByIdRunner, cdc categoriesdb.Getter) {
-  var v *view
+  var v *common.SingleEntryView
   if isIdValid(id) {
     entry := fin.Entry{}
     cds := categories.CatDetailStore{}
@@ -281,14 +273,14 @@ func (h *Handler) doGet(
       http_util.ReportError(w, "Error reading database.", err)
       return
     }
-    v = toView(&entry, cds)
+    v = common.ToSingleEntryView(&entry, cds)
   } else {
     cds, _ := cdc.Get(nil)
     values := make(url.Values)
     if paymentId > 0 {
       values.Set("payment", strconv.FormatInt(paymentId, 10))
     }
-    v = toViewFromForm(false, values, cds, nil)
+    v = common.ToSingleEntryViewFromForm(false, values, cds, nil)
   }
   http_util.WriteTemplate(w, kTemplate, v)
 }
@@ -299,133 +291,8 @@ func (h *Handler) isDateReasonable(date time.Time) bool {
   return !(date.Before(oneMonthBefore) || date.After(currentDate))
 }
 
-type view struct {
-  http_util.Values
-  common.CatDisplayer
-  Splits []split
-  Error error
-  ExistingEntry bool
-}
-
-func (v view) DateMayBeWrong() bool {
-  return v.Error == kDateMayBeWrong
-}
-
-type split int
-
-func (s split) CatParam() string {
-  return fmt.Sprintf("cat-%d", int(s))
-}
-
-func (s split) AmountParam() string {
-  return fmt.Sprintf("amount-%d", int(s))
-}
-
-func (s split) ReconcileParam() string {
-  return fmt.Sprintf("reconciled-%d", int(s))
-}
-
 func isIdValid(id int64) bool {
   return id > 0
-}
-
-func toView(entry *fin.Entry, cds categories.CatDetailStore) *view {
-  result := &view{
-      Values: http_util.Values{make(url.Values)}, CatDisplayer: common.CatDisplayer{cds}, Splits: kSplits, Error: nil, ExistingEntry: true}
-  tag, _ := etag.Etag32(entry)
-  result.Set("etag", strconv.FormatInt(int64(tag), 10))
-  result.Set("name", entry.Name)
-  result.Set("desc", entry.Desc)
-  result.Set("checkno", entry.CheckNo)
-  result.Set("date", entry.Date.Format(date_util.YMDFormat))
-  result.Set("payment", strconv.FormatInt(entry.PaymentId(), 10))
-  if entry.Reconciled() {
-    result.Set("reconciled", "on")
-  }
-  if entry.Status != fin.Reviewed {
-    result.Set("need_review", "on")
-  }
-  catrecs := cds.SortedCatRecs(entry.CatRecs())
-  for idx, split := range result.Splits {
-    if idx < len(catrecs) {
-      result.Set(split.CatParam(), catrecs[idx].Id().String())
-      result.Set(split.AmountParam(), fin.FormatUSD(catrecs[idx].Amount()))
-      if catrecs[idx].Reconciled() {
-        result.Set(split.ReconcileParam(), "on")
-      }
-    }
-  }
-  return result
-}
-
-// ShowEntryFromForm shows an entry from form values.
-func toViewFromForm(
-    existingEntry bool, values url.Values, cds categories.CatDetailStore, err error) *view {
-  return &view{
-      Values: http_util.Values{values},
-      CatDisplayer: common.CatDisplayer{cds},
-      Splits: kSplits,
-      Error: err,
-      ExistingEntry: existingEntry}
-}
-
-func entryMutation(values url.Values) (mutation functional.Filterer, err error) {
-  date, err := time.Parse(date_util.YMDFormat, values.Get("date"))
-  if err != nil {
-    err = errors.New("Date in wrong format.")
-    return
-  }
-  name := values.Get("name")
-  if strings.TrimSpace(name) == "" {
-    err = errors.New("Name required.")
-    return
-  }
-  desc := values.Get("desc")
-  checkno := values.Get("checkno")
-  paymentId, _ := strconv.ParseInt(values.Get("payment"), 10, 64)
-  if paymentId == 0 {
-    err = errors.New("Missing payment.")
-    return
-  }
-  cpb := fin.CatPaymentBuilder{}
-  cpb.SetPaymentId(paymentId).SetReconciled(values.Get("reconciled") != "")
-  catrec := fin.CatRec{}
-  for _, split := range kSplits {
-    cat := fin.NewCat(values.Get(split.CatParam()))
-    amountStr := values.Get(split.AmountParam())
-    if amountStr == "" {
-      break
-    }
-    var amount int64
-    amount, err = fin.ParseUSD(amountStr)
-    if err != nil {
-      err = errors.New(fmt.Sprintf("Invalid amount: %s", amountStr))
-      return
-    }
-    catrec = fin.CatRec{C: cat, A: amount, R: values.Get(split.ReconcileParam()) != ""}
-    cpb.AddCatRec(&catrec)
-  }
-  cp := cpb.Build()
-  needReview := values.Get("need_review") != ""
-  mutation = functional.NewFilterer(func(ptr interface{}) error {
-    p := ptr.(*fin.Entry)
-    p.Date = date
-    p.Name = name
-    p.Desc = desc
-    p.CheckNo = checkno
-    p.CatPayment = cp
-    if needReview {
-      if p.Status == fin.Reviewed {
-        p.Status = fin.NotReviewed
-      }
-    } else {
-      if p.Status != fin.Reviewed {
-        p.Status = fin.Reviewed
-      }
-    }
-    return nil
-  })
-  return
 }
 
 func deleteId(id int64, store findb.DoEntryChangesRunner) error {
@@ -451,8 +318,4 @@ func add(entry *fin.Entry, store findb.DoEntryChangesRunner) error {
 
 func init() {
   kTemplate = common.NewTemplate("single", kTemplateSpec)
-  kSplits = make([]split, kMaxSplits)
-  for i := range kSplits {
-    kSplits[i] = split(i)
-  }
 }
