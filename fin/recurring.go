@@ -40,7 +40,7 @@ func (r RecurringUnit) String() string {
     case Years:
       return "years"
     default:
-      return "undefined"
+      return "unknown"
   }
 }
 

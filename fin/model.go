@@ -634,7 +634,7 @@ func (p Permission) String() string {
     case NonePermission:
       return "None"
     default:
-      panic("Illegal Permission Value")
+      return "Unknown"
   }
 }
 

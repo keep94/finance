@@ -37,8 +37,8 @@ func TestRecurringUnit(t *testing.T) {
   if Days.String() != "days" {
     t.Error("expected 'days'")
   }
-  if RecurringUnitCount.String() != "undefined" {
-    t.Error("expected 'undefined'")
+  if RecurringUnitCount.String() != "unknown" {
+    t.Error("expected 'unknown'")
   }
 }
 
