@@ -306,9 +306,10 @@ func ApplyRecurringEntriesDryRun(
 }
 
 
-// ApplyRecurringEntries applies all outstanding recurring entries.
+// ApplyRecurringEntries applies all outstanding recurring entries
+// and returns how many new entries were added to the database as a result.
 // If there are no outstanding recurring entries, this function does
-// nothing. Note that ApplyRecurringEntries is idempotent.
+// nothing and returns 0. Note that ApplyRecurringEntries is idempotent.
 // t is the database transaction and must be non-nil.
 // store is the database store.
 // currentDate is the current date.
