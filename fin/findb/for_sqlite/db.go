@@ -27,7 +27,7 @@ const (
     kSQLUpdateEntry = "update entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ? where id = ?"
     kSQLDeleteEntryById = "delete from entries where id = ?"
     kSQLRecurringEntryById = "select id, date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left from recurring_entries where id = ?"
-    kSQLRecurringEntries = "select id, date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left from recurring_entries order by id desc"
+    kSQLRecurringEntries = "select id, date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left from recurring_entries order by date, id"
     kSQLInsertRecurringEntry = "insert into recurring_entries (date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     kSQLUpdateRecurringEntry = "update recurring_entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ?, count = ?, unit = ?, num_left = ? where id = ?"
     kSQLDeleteRecurringEntryById = "delete from recurring_entries where id = ?"

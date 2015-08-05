@@ -106,8 +106,8 @@ type RecurringEntryByIdRunner interface {
 }
 
 type RecurringEntriesRunner interface {
-  // RecurringEntries gets all the recurring entries sorted by id
-  // in descending order.
+  // RecurringEntries gets all the recurring entries sorted by date
+  // in ascending order.
   RecurringEntries(t db.Transaction, consumer functional.Consumer) error
 }
 

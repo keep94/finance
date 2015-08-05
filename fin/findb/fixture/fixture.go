@@ -509,10 +509,10 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
     store RecurringEntriesApplier) {
   f.createAccounts(t, store)
 
-  infiniteId := addRecurringEntry(
-      t, store, date_util.YMD(2015, 8, 10), 4700, 20)
   finiteId := addRecurringEntry(
       t, store, date_util.YMD(2015, 8, 20), 3100, 2)
+  infiniteId := addRecurringEntry(
+      t, store, date_util.YMD(2015, 8, 10), 4700, 20)
   christmasId := addRecurringEntry(
       t, store, date_util.YMD(2015, 12, 25), 2900, -1)
   everyTwoWeeksId := addRecurringEntryWithPeriod(
@@ -525,7 +525,7 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
       nil, consume.AppendPtrsTo(&addedEntries, nil)); err != nil {
     t.Fatalf("Error fetching recurring entries: %v", err)
   }
-  verifyRecurringEntriesSortedByIdDesc(t, addedEntries)
+  verifyRecurringEntriesSortedByDate(t, addedEntries)
 
   // Do dry run
   count, err := findb.ApplyRecurringEntriesDryRun(nil, store, date_util.YMD(2015, 11, 10))
@@ -846,11 +846,11 @@ func verifyEntriesSorted(t *testing.T, entries []fin.Entry) {
   }
 }
 
-func verifyRecurringEntriesSortedByIdDesc(
+func verifyRecurringEntriesSortedByDate(
     t *testing.T, entries []*fin.RecurringEntry) {
   length := len(entries)
   for i := 1; i < length; i++ {
-    if entries[i].Id > entries[i - 1].Id {
+    if entries[i].Date.Before(entries[i - 1].Date) {
       t.Error("Recurring entries not sorted correctly.")
     }
   }
