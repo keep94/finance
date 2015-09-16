@@ -4,7 +4,6 @@ import (
   "errors"
   "fmt"
   "github.com/keep94/appcommon/date_util"
-  "github.com/keep94/appcommon/etag"
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
@@ -22,6 +21,8 @@ const (
 var (
   // Error for date being wrong when adding an entry.
   ErrDateMayBeWrong = errors.New("Date may be wrong, proceed anyway?")
+  ErrConcurrentModification = errors.New(
+      "Someone else already updated this entry. Click cancel and try again.")
 )
 
 var (
@@ -66,11 +67,12 @@ func (s EntrySplitType) ReconcileParam() string {
 // of returned view.
 // The caller must refrain from making other types of changes to returned view.
 func ToSingleEntryView(
-    entry *fin.Entry, cds categories.CatDetailStore) *SingleEntryView {
+    entry *fin.Entry,
+    tag uint64,
+    cds categories.CatDetailStore) *SingleEntryView {
   result := &SingleEntryView{
       Values: http_util.Values{make(url.Values)}, CatDisplayer: CatDisplayer{cds}, Splits: entrySplits, Error: nil, ExistingEntry: true}
-  tag, _ := etag.Etag32(entry)
-  result.Set("etag", strconv.FormatInt(int64(tag), 10))
+  result.Set("etag", strconv.FormatUint(tag, 10))
   result.Set("name", entry.Name)
   result.Set("desc", entry.Desc)
   result.Set("checkno", entry.CheckNo)

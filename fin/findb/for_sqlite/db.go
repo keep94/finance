@@ -7,7 +7,6 @@ import (
   "fmt"
   "github.com/keep94/appcommon/db"
   "github.com/keep94/appcommon/db/sqlite_db"
-  "github.com/keep94/appcommon/etag"
   "github.com/keep94/appcommon/passwords"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/findb"
@@ -107,7 +106,7 @@ func entries(conn *sqlite.Conn, options *findb.EntryListOptions, consumer functi
   return consumer.Consume(sqlite_db.ReadRows(&rawEntry{}, stmt))
 }
 
-func entryById(conn *sqlite.Conn, id int64, entry *fin.Entry) error {
+func entryById(conn *sqlite.Conn, id int64, entry interface{}) error {
   stmt, err := conn.Prepare(kSQLEntryById)
   if err != nil {
     return err
@@ -116,7 +115,7 @@ func entryById(conn *sqlite.Conn, id int64, entry *fin.Entry) error {
   return _entryById(stmt, &rawEntry{}, id, entry)
 }
 
-func _entryById(stmt *sqlite.Stmt, r *rawEntry, id int64, entry *fin.Entry) error {
+func _entryById(stmt *sqlite.Stmt, r *rawEntry, id int64, entry interface{}) error {
   if err := stmt.Exec(id); err != nil {
     return err
   }
@@ -229,7 +228,15 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
     deleteStmt.Next()
   }
   for id, update := range changes.Updates {
-    err = _entryById(getStmt, row, id, &entry)
+    var entryWithEtag fin.EntryWithEtag
+    var entryPtr *fin.Entry
+    if changes.Etags2 != nil {
+      entryPtr = &entryWithEtag.Entry
+      err = _entryById(getStmt, row, id, &entryWithEtag)
+    } else {
+      entryPtr = &entry
+      err = _entryById(getStmt, row, id, &entry)
+    }
     if err == findb.NoSuchId {
       continue
     }
@@ -237,21 +244,17 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
       return err
     }
     concurrent_update_detected := false
-    if changes.Etags != nil {
-      expected_etag, ok := changes.Etags[id]
+    if changes.Etags2 != nil {
+      expected_etag, ok := changes.Etags2[id]
       if !ok {
         panic("Etags field present, but does not contain etag for all updated entries.")
       }
-      actual_etag, err := etag.Etag32(&entry)
-      if err != nil {
-        return err
-      }
-      if expected_etag != actual_etag {
+      if expected_etag != entryWithEtag.Etag {
         concurrent_update_detected = true
       }
     }
-    old_cat_payment := entry.CatPayment
-    err = update.Filter(&entry)
+    old_cat_payment := entryPtr.CatPayment
+    err = update.Filter(entryPtr)
     if err == functional.Skipped {
       continue
     }
@@ -262,9 +265,10 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
       return findb.ConcurrentUpdate
     }
     deltas.Exclude(&old_cat_payment)
-    deltas.Include(&entry.CatPayment)
+    deltas.Include(&entryPtr.CatPayment)
+    entryPtr.Id = id
     var updateValues []interface{}
-    if updateValues, err = sqlite_db.UpdateValues(row, &entry); err != nil {
+    if updateValues, err = sqlite_db.UpdateValues(row, entryPtr); err != nil {
       return err
     }
     err = updateStmt.Exec(updateValues...)
@@ -622,6 +626,13 @@ func (s Store) EntryById(
   })
 }
 
+func (s Store) EntryByIdWithEtag(
+    t db.Transaction, id int64, entry *fin.EntryWithEtag) error {
+  return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
+    return entryById(conn, id, entry)
+  })
+}
+
 func (s Store) UnreconciledEntries(
     t db.Transaction, acctId int64,
     account *fin.Account, consumer functional.Consumer) error {
@@ -721,6 +732,21 @@ func (s Store) RecurringEntryById(
   })
 }
 
+func (s Store) RecurringEntryByIdWithEtag(
+      t db.Transaction,
+      id int64,
+      entry *fin.RecurringEntryWithEtag) error {
+  return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
+    return sqlite_db.ReadSingle(
+        conn,
+        &rawRecurringEntry{},
+        findb.NoSuchId,
+        entry,
+        kSQLRecurringEntryById,
+        id)
+  })
+}
+
 func (s Store) RecurringEntries(
     t db.Transaction, consumer functional.Consumer) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
@@ -773,6 +799,11 @@ func (s ReadOnlyStore) EntryById(
   return s.store.EntryById(t, id, entry)
 }
 
+func (s ReadOnlyStore) EntryByIdWithEtag(
+    t db.Transaction, id int64, entry *fin.EntryWithEtag) error {
+  return s.store.EntryByIdWithEtag(t, id, entry)
+}
+
 func (s ReadOnlyStore) UnreconciledEntries(
     t db.Transaction, acctId int64,
     account *fin.Account, consumer functional.Consumer) error {
@@ -797,6 +828,11 @@ func (s ReadOnlyStore) Users(
 func (s ReadOnlyStore) RecurringEntryById(
       t db.Transaction, id int64, entry *fin.RecurringEntry) error {
   return s.store.RecurringEntryById(t, id, entry)
+}
+
+func (s ReadOnlyStore) RecurringEntryByIdWithEtag(
+      t db.Transaction, id int64, entry *fin.RecurringEntryWithEtag) error {
+  return s.store.RecurringEntryByIdWithEtag(t, id, entry)
 }
 
 func (s ReadOnlyStore) RecurringEntries(

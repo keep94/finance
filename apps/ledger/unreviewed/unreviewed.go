@@ -3,7 +3,6 @@ package unreviewed
 import (
   "fmt"
   "github.com/keep94/appcommon/db"
-  "github.com/keep94/appcommon/etag"
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
@@ -82,7 +81,7 @@ body {
     <tr class="lineitem">
       <td>
         <input type="hidden" name="id" value="{{.Id}}">
-        <input type="hidden" name="etag_{{.Id}}" value="{{$top.Etag .}}">
+        <input type="hidden" name="etag_{{.Id}}" value="{{.Etag}}">
         <input type="checkbox" id="checked_{{.Id}}" name="checked_{{.Id}}" {{if $top.InProgress .Status}}checked{{end}}></td>
       <td>
         <select id="cat_{{.Id}}" name="cat_{{.Id}}" onchange="this.form['checked_{{.Id}}'].checked=true">
@@ -157,15 +156,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     _, isFinal := r.Form["final"]
     ids := r.Form["id"]
     updates := make(map[int64]functional.Filterer, len(ids))
-    etags := make(map[int64]uint32, len(ids))
+    etags := make(map[int64]uint64, len(ids))
     for _, idStr := range ids {
       id, _ := strconv.ParseInt(idStr, 10, 64)
       updates[id] = createMutation(r.Form, id, isFinal)
-      etag, _ := strconv.ParseUint(r.Form.Get(fmt.Sprintf("etag_%d", id)), 10, 32)
-      etags[id] = uint32(etag)
+      etag, _ := strconv.ParseUint(r.Form.Get(fmt.Sprintf("etag_%d", id)), 10, 64)
+      etags[id] = etag
     }
     err := store.DoEntryChanges(nil, &findb.EntryChanges{
-        Updates: updates, Etags: etags})
+        Updates: updates, Etags2: etags})
     if err == findb.ConcurrentUpdate {
       message = "You changes were not saved because another user saved while you were editing."
     } else if err == findb.NoPermission {
@@ -181,7 +180,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       return
     }
   }
-  buffer := consumers.NewEntryBuffer(h.PageSize)
+  buffer := consumers.NewEntryBufferWithEtags(h.PageSize)
   cds := categories.CatDetailStore{}
   err := h.Doer.Do(func(t db.Transaction) error {
     cds, _ = cache.Get(t)
@@ -198,7 +197,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           http_util.Values{r.Form},
           common.CatDisplayer{cds},
           common.EntryLinker{r.URL},
-          buffer.Entries(),
+          buffer.EntriesWithEtags(),
           message})
 }
 
@@ -206,7 +205,7 @@ type view struct {
   http_util.Values
   common.CatDisplayer
   common.EntryLinker
-  Entries []fin.Entry
+  Entries []fin.EntryWithEtag
   ErrorMessage string
 }
 
@@ -214,16 +213,12 @@ func (v *view) InProgress(status fin.ReviewStatus) bool {
   return status == fin.ReviewInProgress
 }
 
-func (v *view) IdsAsJsArray(entries []fin.Entry) template.JS {
+func (v *view) IdsAsJsArray(entries []fin.EntryWithEtag) template.JS {
   ids := make([]string, len(entries))
   for i := range entries {
     ids[i] = strconv.FormatInt(entries[i].Id, 10)
   }
   return template.JS(fmt.Sprintf("[%s]", strings.Join(ids, ", ")))
-}
-
-func (v *view) Etag(entry *fin.Entry) (uint32, error) {
-  return etag.Etag32(entry)
 }
 
 func createMutation(values url.Values, id int64, isFinal bool) functional.Filterer {

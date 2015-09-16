@@ -80,6 +80,12 @@ type EntryByIdRunner interface {
   EntryById(t db.Transaction, id int64, entry *fin.Entry) error
 }
 
+type EntryByIdWithEtagRunner interface {
+  // EntryByIdWithEtag fetches an Entry by id along with its etag.
+  EntryByIdWithEtag(
+      t db.Transaction, id int64, entry *fin.EntryWithEtag) error
+}
+
 type UnreconciledEntriesRunner interface {
   // UnreconciledEntries gets unreconciled entries by account from most to least
   // recent.
@@ -103,6 +109,13 @@ type RecurringEntryByIdRunner interface {
   // RecurringEntryById gets a recurring entry by id.
   RecurringEntryById(
       t db.Transaction, id int64, entry *fin.RecurringEntry) error
+}
+
+type RecurringEntryByIdWithEtagRunner interface {
+  // RecurringEntryByIdWithEtag gets a recurring entry by id along with its
+  // etag.
+  RecurringEntryByIdWithEtag(
+      t db.Transaction, id int64, entry *fin.RecurringEntryWithEtag) error
 }
 
 type RecurringEntriesRunner interface {
@@ -154,12 +167,12 @@ type EntryChanges struct {
   Updates map[int64]functional.Filterer
   // Deletes is the ids of the entries to delete.
   Deletes []int64
-  // Etags contains the etags of the entries being updated.
+  // Etags2 contains the etags of the entries being updated.
   // It is used to detect concurrent updates.
   // The key is the entry id; the value is the etag of the original entry.
   // This field is optional, but if present it must contain the etag of
   // each entry being updated.
-  Etags map[int64]uint32
+  Etags2 map[int64]uint64
 }
 
 // EntryListOptions represents options to list entries.
@@ -231,6 +244,11 @@ func (n NoPermissionStore) EntryById(
   return NoPermission
 }
 
+func (n NoPermissionStore) EntryByIdWithEtag(
+    t db.Transaction, id int64, entry *fin.EntryWithEtag) error {
+  return NoPermission
+}
+
 func (n NoPermissionStore) UnreconciledEntries(
     t db.Transaction, acctId int64, account *fin.Account,
     consumer functional.Consumer) error {
@@ -249,6 +267,11 @@ func (n NoPermissionStore) UpdateRecurringEntry(
 
 func (n NoPermissionStore) RecurringEntryById(
     t db.Transaction, id int64, entry *fin.RecurringEntry) error {
+  return NoPermission
+}
+
+func (n NoPermissionStore) RecurringEntryByIdWithEtag(
+    t db.Transaction, id int64, entry *fin.RecurringEntryWithEtag) error {
   return NoPermission
 }
 

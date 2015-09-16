@@ -28,7 +28,7 @@ func (f *Fixture) Find(t *testing.T) {
     return
   }
   set := qfxdb.FitIdSet{"FitId1_1": true, "FitId1_2": true, "FitId1_3": true}
-  inSet, err := f.Store.Find(nil, 1, set); 
+  inSet, err := f.Store.Find(nil, 1, set)
   if err != nil {
     t.Errorf("Error accessing database: %v", err)
     return
@@ -37,7 +37,7 @@ func (f *Fixture) Find(t *testing.T) {
   if !reflect.DeepEqual(inSet, expected) {
     t.Errorf("Expected %v, got %v", expected, inSet)
   }
-  inSet, err = f.Store.Find(nil, 2, set); 
+  inSet, err = f.Store.Find(nil, 2, set)
   if err != nil {
     t.Errorf("Error accessing database: %v", err)
     return

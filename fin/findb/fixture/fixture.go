@@ -7,7 +7,6 @@ import (
   "fmt"
   "github.com/keep94/appcommon/date_util"
   "github.com/keep94/appcommon/db"
-  "github.com/keep94/appcommon/etag"
   "github.com/keep94/appcommon/passwords"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/consumers"
@@ -43,6 +42,13 @@ type AccountByIdStore interface {
 type EntryByIdStore interface {
   MinimalStore
   findb.EntryByIdRunner
+}
+
+type EntryByIdWithEtagStore interface {
+  MinimalStore
+  findb.EntryByIdRunner
+  findb.EntryByIdWithEtagRunner
+  findb.AccountByIdRunner
 }
 
 type EntriesStore interface {
@@ -371,22 +377,39 @@ func (f EntryAccountFixture) UnreconciledEntriesNoAccount(
 }
 
 func (f EntryAccountFixture) ConcurrentUpdateDetection(
-    t *testing.T, store EntryByIdStore) {
+    t *testing.T, store EntryByIdWithEtagStore) {
   f.createAccounts(t, store)
   createListEntries(t, store)
-  var entry fin.Entry
-  err := store.EntryById(nil, 2, &entry)
+  var entryWithEtag fin.EntryWithEtag
+  err := store.EntryByIdWithEtag(nil, 2, &entryWithEtag)
   if err != nil {
     t.Errorf("Error reading entry from database: %v", err)
+    return
   }
-  etag, err := etag.Etag32(&entry)
+  etag := entryWithEtag.Etag
+  var oldAccount1 fin.Account
+  var oldAccount2 fin.Account
+  err = store.AccountById(nil, 1, &oldAccount1)
   if err != nil {
-    t.Errorf("Error computing etag: %v", err)
+    t.Errorf("Error reading account 1: %v", err)
+    return
   }
+  err = store.AccountById(nil, 2, &oldAccount2)
+  if err != nil {
+    t.Errorf("Error reading account 2: %v", err)
+    return
+  }
+
+  // entry 2 transfers money from account 2 to account 1
+  oldAmt := -entryWithEtag.Total()
+  fmt.Println(oldAmt)
+  newCp := fin.NewCatPayment(fin.NewCat("2:1"), oldAmt + 132, true, 2)
   ec := findb.EntryChanges{
     Updates: map[int64]functional.Filterer {
-        2: changeNameFunc("A new name.")},
-    Etags: map[int64]uint32 {
+        2: functional.All(
+            changeNameFunc("A new name."),
+            changeCatPaymentFunc(&newCp))},
+    Etags2: map[int64]uint64 {
         2: etag}}
   err = store.DoEntryChanges(nil, &ec)
   if err != nil {
@@ -395,18 +418,37 @@ func (f EntryAccountFixture) ConcurrentUpdateDetection(
   ec = findb.EntryChanges{
     Updates: map[int64]functional.Filterer {
         2: changeNameFunc("Another new name.")},
-    Etags: map[int64]uint32 {
+    Etags2: map[int64]uint64 {
         2: etag}}
   err = store.DoEntryChanges(nil, &ec)
   if err != findb.ConcurrentUpdate {
     t.Errorf("Expected ConcurrentUpdate error, got %v", err)
   }
+  var entry fin.Entry
   err = store.EntryById(nil, 2, &entry)
   if err != nil {
     t.Errorf("Error reading entry from database: %v", err)
   }
   if entry.Name != "A new name." {
     t.Errorf("Expected 'A new name.', got %v", entry.Name)
+  }
+  var newAccount1 fin.Account
+  var newAccount2 fin.Account
+  err = store.AccountById(nil, 1, &newAccount1)
+  if err != nil {
+    t.Errorf("Error reading account 1: %v", err)
+    return
+  }
+  err = store.AccountById(nil, 2, &newAccount2)
+  if err != nil {
+    t.Errorf("Error reading account 2: %v", err)
+    return
+  }
+  if diff := newAccount1.Balance - oldAccount1.Balance; diff != 132 {
+    t.Errorf("expected difference of 132, got %d", diff)
+  }
+  if diff := newAccount2.Balance - oldAccount2.Balance; diff != -132 {
+    t.Errorf("expected difference of -132, got %d", diff)
   }
 }
 
@@ -417,7 +459,7 @@ func (f EntryAccountFixture) ConcurrentUpdateSkipped(
   ec := findb.EntryChanges{
     Updates: map[int64]functional.Filterer {
         2: throwError(nil, functional.Skipped)},
-    Etags: map[int64]uint32 {  // Etag doesn't match
+    Etags2: map[int64]uint64 {  // Etag doesn't match
         2: 9999}}
   err := store.DoEntryChanges(nil, &ec)
   if err != nil {
@@ -432,7 +474,7 @@ func (f EntryAccountFixture) ConcurrentUpdateError(
   ec := findb.EntryChanges{
     Updates: map[int64]functional.Filterer {
         2: throwError(nil, changeError)},
-    Etags: map[int64]uint32 {  // Etag doesn't match
+    Etags2: map[int64]uint64 {  // Etag doesn't match
         2: 9999}}
   err := store.DoEntryChanges(nil, &ec)
   if err != changeError {
@@ -945,6 +987,15 @@ func changeNameFunc(name string) functional.Filterer {
     func(ptr interface{}) error {
       entry := ptr.(*fin.Entry)
       entry.Name = name
+      return nil
+    })
+}
+
+func changeCatPaymentFunc(cp *fin.CatPayment) functional.Filterer {
+  return functional.NewFilterer(
+    func(ptr interface{}) error {
+      entry := ptr.(*fin.Entry)
+      entry.CatPayment = *cp
       return nil
     })
 }

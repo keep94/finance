@@ -1,7 +1,6 @@
 package single
 
 import (
-  "errors"
   "fmt"
   "github.com/keep94/appcommon/date_util"
   "github.com/keep94/appcommon/db"
@@ -180,7 +179,7 @@ var (
 // Store methods are from fin.Store
 type Store interface {
   findb.DoEntryChangesRunner
-  findb.EntryByIdRunner
+  findb.EntryByIdWithEtagRunner
 }
 
 type Handler struct {
@@ -217,8 +216,8 @@ func (h *Handler) doPost(
     mutation, err = common.EntryMutation(r.Form)
     if err == nil {
       if isIdValid(id) {
-        tag, _ := strconv.ParseUint(r.Form.Get("etag"), 10, 32)
-        err = updateId(id, uint32(tag), mutation, store)
+        tag, _ := strconv.ParseUint(r.Form.Get("etag"), 10, 64)
+        err = updateId(id, tag, mutation, store)
       } else {
         entry := fin.Entry{}
         mutation.Filter(&entry)
@@ -238,7 +237,7 @@ func (h *Handler) doPost(
   }
   if err != nil {
     if err == findb.ConcurrentUpdate {
-      err = errors.New("Someone else already updated this entry. Hit cancel and try again.") 
+      err = common.ErrConcurrentModification
     }
     cds, _ := cdc.Get(nil)
     http_util.WriteTemplate(
@@ -253,17 +252,17 @@ func (h *Handler) doPost(
 
 func (h *Handler) doGet(
     w http.ResponseWriter, id, paymentId int64,
-    store findb.EntryByIdRunner, cdc categoriesdb.Getter) {
+    store findb.EntryByIdWithEtagRunner, cdc categoriesdb.Getter) {
   var v *common.SingleEntryView
   if isIdValid(id) {
-    entry := fin.Entry{}
-    cds := categories.CatDetailStore{}
+    var entryWithEtag fin.EntryWithEtag
+    var cds categories.CatDetailStore
     err := h.Doer.Do(func(t db.Transaction) (err error) {
       cds, err = cdc.Get(t)
       if err != nil {
         return
       }
-      return store.EntryById(t, id, &entry)
+      return store.EntryByIdWithEtag(t, id, &entryWithEtag)
     })
     if err == findb.NoSuchId {
       fmt.Fprintln(w, "No entry found.")
@@ -273,7 +272,7 @@ func (h *Handler) doGet(
       http_util.ReportError(w, "Error reading database.", err)
       return
     }
-    v = common.ToSingleEntryView(&entry, cds)
+    v = common.ToSingleEntryView(&entryWithEtag.Entry, entryWithEtag.Etag, cds)
   } else {
     cds, _ := cdc.Get(nil)
     values := make(url.Values)
@@ -302,12 +301,12 @@ func deleteId(id int64, store findb.DoEntryChangesRunner) error {
 
 func updateId(
     id int64,
-    tag uint32,
+    tag uint64,
     mutation functional.Filterer,
     store findb.DoEntryChangesRunner) error {
   changes := findb.EntryChanges{
       Updates: map[int64]functional.Filterer{ id: mutation},
-      Etags: map[int64]uint32{ id: tag}}
+      Etags2: map[int64]uint64{ id: tag}}
   return store.DoEntryChanges(nil, &changes)
 }
 

@@ -2,8 +2,6 @@
 package fin
 
 import (
-  "bytes"
-  "encoding/gob"
   "errors"
   "fmt"
   "github.com/keep94/appcommon/passwords"
@@ -448,39 +446,18 @@ func (e *Entry) String() string {
   return fmt.Sprintf("%v", *e)
 }
 
-// GobEncode is included so that Entry values work with the etags package
-func (e *Entry) GobEncode() (b []byte, err error) {
-  buffer := bytes.NewBuffer(make([]byte, 0, 512))
-  encoder := gob.NewEncoder(buffer)
-  if err = encoder.Encode(e.Id); err != nil {
-    return
-  }
-  if err = encoder.Encode(e.Date); err != nil {
-    return
-  }
-  if err = encoder.Encode(e.Name); err != nil {
-    return
-  }
-  if err = encoder.Encode(e.Desc); err != nil {
-    return
-  }
-  if err = encoder.Encode(e.CheckNo); err != nil {
-    return
-  }
-  if err = encoder.Encode(e.cr); err != nil {
-    return
-  }
-  if err = encoder.Encode(e.id); err != nil {
-    return
-  }
-  if err = encoder.Encode(e.r); err != nil {
-    return
-  }
-  if err = encoder.Encode(e.Status); err != nil {
-    return
-  }
-  b = buffer.Bytes()
-  return
+// Read an EntryWithEtag instead of an Entry to collect the entry's etag
+type EntryWithEtag struct {
+  Entry
+  Etag uint64
+}
+
+func (e *EntryWithEtag) GetPtr() interface{} {
+  return &e.Entry
+}
+
+func (e *EntryWithEtag) SetEtag(etag uint64) {
+  e.Etag = etag
 }
 
 // EntryBalance is an Entry with an ending balance

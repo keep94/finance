@@ -37,6 +37,25 @@ func Compose(consumers ...functional.Consumer) functional.Consumer {
   return functional.CompositeConsumer(&fin.Entry{}, nil, consumers...)
 }
 
+// EntryBufferWithEtags stores fin.Entry instances fetched from database
+// along with their etags
+type EntryBufferWithEtags struct {
+  *consume.Buffer
+}
+
+// NewEntryBufferWithEtags creates an EntryBufferWithEtags that can store
+// up to capacity fin.EntryWithEtag instances.
+func NewEntryBufferWithEtags(capacity int) EntryBufferWithEtags {
+  return EntryBufferWithEtags{
+      consume.NewBuffer(make([]fin.EntryWithEtag, capacity))}
+}
+
+// EntriesWithEtags returns the entries with etagsgathered from last
+// database fetch. Returned array valid until next call to Consume.
+func (e EntryBufferWithEtags) EntriesWithEtags() []fin.EntryWithEtag {
+  return e.Values().([]fin.EntryWithEtag)
+}
+
 // EntryBuffer stores fin.Entry instances fetched from database
 type EntryBuffer struct {
   *consume.Buffer

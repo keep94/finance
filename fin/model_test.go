@@ -1,8 +1,6 @@
 package fin
 
 import (
-  "github.com/keep94/appcommon/date_util"
-  "github.com/keep94/appcommon/etag"
   "reflect"
   "testing"
 )
@@ -283,80 +281,6 @@ func TestZeroCatPaymentsEqual(t *testing.T) {
   setToZero := cpb.Build()
   if !reflect.DeepEqual(zero, setToZero) {
     t.Error("Expected zero CatPayments to be equal.")
-  }
-}
-
-func TestEtagEmpty(t *testing.T) {
-  cpb := CatPaymentBuilder{}
-  entry := Entry{}
-  tag, err := etag.Etag32(&entry)
-  if err != nil {
-    t.Errorf("Got error computing etag: %v", err)
-  }
-  entry_copy := Entry{
-      Date: date_util.YMD(1, 1, 1),
-      CatPayment: cpb.Build()}
-  tag_copy, err := etag.Etag32(&entry_copy)
-  if err != nil {
-    t.Errorf("Got error computing etag: %v", err)
-  }
-  if tag != tag_copy {
-    t.Errorf("Etags should be equal, got %v and %v", tag, tag_copy)
-  }
-}
-
-func TestEtag(t *testing.T) {
-  cpb := CatPaymentBuilder{}
-  entry := Entry{
-     Id: 35,
-     Date: date_util.YMD(2012, 12, 25),
-     Name: "Name",
-     Desc: "Desc",
-     CheckNo: "1234",
-     Status: Reviewed,
-     CatPayment: cpb.AddCatRec(
-         &CatRec{NewCat("0:7"), 3543, false}).AddCatRec(
-         &CatRec{NewCat("0:3"), 2312, false}).SetPaymentId(
-         1).SetReconciled(false).Build()}
-  entry_copy := Entry{
-     Id: 35,
-     Date: date_util.YMD(2012, 12, 25),
-     Name: "Name",
-     Desc: "Desc",
-     CheckNo: "1234",
-     Status: Reviewed,
-     CatPayment: cpb.AddCatRec(
-         &CatRec{NewCat("0:7"), 3543, false}).AddCatRec(
-         &CatRec{NewCat("0:3"), 2312, false}).SetPaymentId(
-         1).SetReconciled(false).Build()}
-  entry_diff := Entry{
-     Id: 35,
-     Date: date_util.YMD(2012, 12, 25),
-     Name: "Name",
-     Desc: "Desc",
-     CheckNo: "1234",
-     Status: Reviewed,
-     CatPayment: cpb.AddCatRec(
-         &CatRec{NewCat("0:7"), 3543, false}).AddCatRec(
-         &CatRec{NewCat("0:3"), 2312, true}).SetPaymentId(
-         1).SetReconciled(false).Build()}
-  tag, err := etag.Etag32(&entry)
-  if err != nil {
-    t.Errorf("Got error computing etag: %v", err)
-  }
-  tag_copy, err := etag.Etag32(&entry_copy)
-  if err != nil {
-    t.Errorf("Got error computing etag: %v", err)
-  }
-  tag_diff, err := etag.Etag32(&entry_diff)
-  if err != nil {
-    t.Errorf("Got error computing etag: %v", err)
-  }
-  if tag != tag_copy {
-    t.Errorf("Expected ETags to be equal, got %v and %v", tag, tag_copy)
-  }
-  if tag == tag_diff {
-    t.Error("Expected ETags to be unequal")
   }
 }
 

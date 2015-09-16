@@ -117,3 +117,18 @@ func (r *RecurringEntry) Advance(
   }
   return
 }
+
+// Read an RecurringEntryWithEtag instead of a RecurringEntry to collect
+// the recurring entry's etag
+type RecurringEntryWithEtag struct {
+  RecurringEntry
+  Etag uint64
+}
+
+func (r *RecurringEntryWithEtag) GetPtr() interface{} {
+  return &r.RecurringEntry
+}
+
+func (r *RecurringEntryWithEtag) SetEtag(etag uint64) {
+  r.Etag = etag
+}

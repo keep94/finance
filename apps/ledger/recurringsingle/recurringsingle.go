@@ -193,13 +193,13 @@ var (
 // Store methods are from fin.Store
 type Store interface {
   findb.AddRecurringEntryRunner
-  findb.RecurringEntryByIdRunner
+  findb.RecurringEntryByIdWithEtagRunner
   findb.UpdateRecurringEntryRunner
   findb.RemoveRecurringEntryByIdRunner
 }
 
 type UpdateRecurringEntryRunner interface {
-  findb.RecurringEntryByIdRunner
+  findb.RecurringEntryByIdWithEtagRunner
   findb.UpdateRecurringEntryRunner
 }
 
@@ -237,7 +237,8 @@ func (h *Handler) doPost(
     mutation, err = entryMutation(r.Form)
     if err == nil {
       if isIdValid(id) {
-        err = h.updateId(id, mutation, store)
+        tag, _ := strconv.ParseUint(r.Form.Get("etag"), 10, 64)
+        err = h.updateId(id, tag, mutation, store)
       } else {
         var entry fin.RecurringEntry
         mutation.Filter(&entry)
@@ -256,6 +257,9 @@ func (h *Handler) doPost(
     }
   }
   if err != nil {
+    if err == findb.ConcurrentUpdate {
+      err = common.ErrConcurrentModification
+    }
     cds, _ := cdc.Get(nil)
     http_util.WriteTemplate(
         w, kTemplate, toViewFromForm(isIdValid(id), r.Form, cds, err))
@@ -266,17 +270,17 @@ func (h *Handler) doPost(
 
 func (h *Handler) doGet(
     w http.ResponseWriter, id, paymentId int64,
-    store findb.RecurringEntryByIdRunner, cdc categoriesdb.Getter) {
+    store findb.RecurringEntryByIdWithEtagRunner, cdc categoriesdb.Getter) {
   var v *view
   if isIdValid(id) {
-    var entry fin.RecurringEntry
+    var entryWithEtag fin.RecurringEntryWithEtag
     var cds categories.CatDetailStore
     err := h.Doer.Do(func(t db.Transaction) (err error) {
       cds, err = cdc.Get(t)
       if err != nil {
         return
       }
-      return store.RecurringEntryById(t, id, &entry)
+      return store.RecurringEntryByIdWithEtag(t, id, &entryWithEtag)
     })
     if err == findb.NoSuchId {
       fmt.Fprintln(w, "No entry found.")
@@ -286,7 +290,7 @@ func (h *Handler) doGet(
       http_util.ReportError(w, "Error reading database.", err)
       return
     }
-    v = toView(&entry, cds)
+    v = toView(&entryWithEtag.RecurringEntry, entryWithEtag.Etag, cds)
   } else {
     cds, _ := cdc.Get(nil)
     values := make(url.Values)
@@ -305,15 +309,20 @@ func (h *Handler) isDateReasonable(date time.Time) bool {
 
 func (h *Handler) updateId(
     id int64,
+    tag uint64,
     mutation functional.Filterer,
     store UpdateRecurringEntryRunner) error {
   return h.Doer.Do(func(t db.Transaction) (err error) {
-    var entry fin.RecurringEntry
-    if err = store.RecurringEntryById(t, id, &entry); err != nil {
+    var entryWithEtag fin.RecurringEntryWithEtag
+    if err = store.RecurringEntryByIdWithEtag(t, id, &entryWithEtag); err != nil {
       return
     }
-    mutation.Filter(&entry)
-    return store.UpdateRecurringEntry(t, &entry)
+    if tag != entryWithEtag.Etag {
+      err = findb.ConcurrentUpdate
+      return
+    }
+    mutation.Filter(&entryWithEtag.RecurringEntry)
+    return store.UpdateRecurringEntry(t, &entryWithEtag.RecurringEntry)
   })
 }
 
@@ -327,9 +336,11 @@ func isIdValid(id int64) bool {
 }
 
 func toView(
-    entry *fin.RecurringEntry, cds categories.CatDetailStore) *view {
+    entry *fin.RecurringEntry,
+    tag uint64,
+    cds categories.CatDetailStore) *view {
   result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
-  result.SingleEntryView = common.ToSingleEntryView(&entry.Entry, cds)
+  result.SingleEntryView = common.ToSingleEntryView(&entry.Entry, tag, cds)
   result.Set("count", strconv.Itoa(entry.Period.Count))
   result.Set("unit", strconv.Itoa(entry.Period.Unit.ToInt()))
   if entry.NumLeft >= 0 {
