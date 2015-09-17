@@ -167,12 +167,12 @@ type EntryChanges struct {
   Updates map[int64]functional.Filterer
   // Deletes is the ids of the entries to delete.
   Deletes []int64
-  // Etags2 contains the etags of the entries being updated.
+  // Etags contains the etags of the entries being updated.
   // It is used to detect concurrent updates.
   // The key is the entry id; the value is the etag of the original entry.
   // This field is optional, but if present it must contain the etag of
   // each entry being updated.
-  Etags2 map[int64]uint64
+  Etags map[int64]uint64
 }
 
 // EntryListOptions represents options to list entries.

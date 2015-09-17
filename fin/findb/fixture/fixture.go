@@ -409,7 +409,7 @@ func (f EntryAccountFixture) ConcurrentUpdateDetection(
         2: functional.All(
             changeNameFunc("A new name."),
             changeCatPaymentFunc(&newCp))},
-    Etags2: map[int64]uint64 {
+    Etags: map[int64]uint64 {
         2: etag}}
   err = store.DoEntryChanges(nil, &ec)
   if err != nil {
@@ -418,7 +418,7 @@ func (f EntryAccountFixture) ConcurrentUpdateDetection(
   ec = findb.EntryChanges{
     Updates: map[int64]functional.Filterer {
         2: changeNameFunc("Another new name.")},
-    Etags2: map[int64]uint64 {
+    Etags: map[int64]uint64 {
         2: etag}}
   err = store.DoEntryChanges(nil, &ec)
   if err != findb.ConcurrentUpdate {
@@ -459,7 +459,7 @@ func (f EntryAccountFixture) ConcurrentUpdateSkipped(
   ec := findb.EntryChanges{
     Updates: map[int64]functional.Filterer {
         2: throwError(nil, functional.Skipped)},
-    Etags2: map[int64]uint64 {  // Etag doesn't match
+    Etags: map[int64]uint64 {  // Etag doesn't match
         2: 9999}}
   err := store.DoEntryChanges(nil, &ec)
   if err != nil {
@@ -474,7 +474,7 @@ func (f EntryAccountFixture) ConcurrentUpdateError(
   ec := findb.EntryChanges{
     Updates: map[int64]functional.Filterer {
         2: throwError(nil, changeError)},
-    Etags2: map[int64]uint64 {  // Etag doesn't match
+    Etags: map[int64]uint64 {  // Etag doesn't match
         2: 9999}}
   err := store.DoEntryChanges(nil, &ec)
   if err != changeError {

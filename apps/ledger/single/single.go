@@ -306,7 +306,7 @@ func updateId(
     store findb.DoEntryChangesRunner) error {
   changes := findb.EntryChanges{
       Updates: map[int64]functional.Filterer{ id: mutation},
-      Etags2: map[int64]uint64{ id: tag}}
+      Etags: map[int64]uint64{ id: tag}}
   return store.DoEntryChanges(nil, &changes)
 }
 

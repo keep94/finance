@@ -164,7 +164,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       etags[id] = etag
     }
     err := store.DoEntryChanges(nil, &findb.EntryChanges{
-        Updates: updates, Etags2: etags})
+        Updates: updates, Etags: etags})
     if err == findb.ConcurrentUpdate {
       message = "You changes were not saved because another user saved while you were editing."
     } else if err == findb.NoPermission {

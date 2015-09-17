@@ -230,7 +230,7 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
   for id, update := range changes.Updates {
     var entryWithEtag fin.EntryWithEtag
     var entryPtr *fin.Entry
-    if changes.Etags2 != nil {
+    if changes.Etags != nil {
       entryPtr = &entryWithEtag.Entry
       err = _entryById(getStmt, row, id, &entryWithEtag)
     } else {
@@ -244,8 +244,8 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
       return err
     }
     concurrent_update_detected := false
-    if changes.Etags2 != nil {
-      expected_etag, ok := changes.Etags2[id]
+    if changes.Etags != nil {
+      expected_etag, ok := changes.Etags[id]
       if !ok {
         panic("Etags field present, but does not contain etag for all updated entries.")
       }
