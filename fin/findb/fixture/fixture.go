@@ -552,14 +552,43 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   f.createAccounts(t, store)
 
   finiteId := addRecurringEntry(
-      t, store, date_util.YMD(2015, 8, 20), 3100, 2)
+      t, store, date_util.YMD(2015, 7, 20), 3100, 3)
   infiniteId := addRecurringEntry(
       t, store, date_util.YMD(2015, 8, 10), 4700, 20)
   christmasId := addRecurringEntry(
       t, store, date_util.YMD(2015, 12, 25), 2900, -1)
+  newYearId := addRecurringEntry(
+      t, store, date_util.YMD(2015, 1, 1), 4400, 0)
   everyTwoWeeksId := addRecurringEntryWithPeriod(
       t, store, date_util.YMD(2015, 9, 24),
       14, fin.Days, 5900, -1)
+
+  // Skip finiteId once advancing it by 1 month
+  var skipped bool
+  err := f.Doer.Do(func (t db.Transaction) error {
+    var err error
+    skipped, err = findb.SkipRecurringEntry(t, store, finiteId)
+    return err
+  })
+  if err != nil {
+    t.Fatalf("Error skipping recurring entry.")
+  }
+  if !skipped {
+    t.Error("Expected finiteId entry to be skipped.")
+  }
+
+  // Skipping newYearId should return false
+  err = f.Doer.Do(func (t db.Transaction) error {
+    var err error
+    skipped, err = findb.SkipRecurringEntry(t, store, newYearId)
+    return err
+  })
+  if err != nil {
+    t.Fatalf("Error skipping recurring entry.")
+  }
+  if skipped {
+    t.Error("Expected newYearId entry not to be skipped.")
+  }
 
   // Make sure fetching entries is sorted by ID in descending order
   var addedEntries []*fin.RecurringEntry

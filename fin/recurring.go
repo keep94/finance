@@ -93,26 +93,41 @@ type RecurringEntry struct {
   // unlimited.
   NumLeft int
 }
+
+// AdvanceOnce advances this recurring entry exactly once storing the
+// generated entry at newEntry.
+// newEntry may be nil.
+// Returns true if this instance advanced or false if it did not.
+// This instance won't advance if NumLeft is already 0.
+func (r *RecurringEntry) AdvanceOnce(newEntry *Entry) (advanced bool) {
+  // Are we out?
+  if r.NumLeft == 0 {
+    return false
+  }
+  if newEntry != nil {
+    *newEntry = r.Entry
+    newEntry.Id = 0
+  }
+  r.Date = r.Period.AddTo(r.Date)
+  if r.NumLeft > 0 {
+    r.NumLeft--
+  }
+  return true
+}
   
 // Advance advances this recurring entry through the current date adding the
-// gnerated entries to appendedNewEntries. After this returns, the date
+// generated entries to appendedNewEntries. After this returns, the date
 // of this instance is after currentDate unless the NumLeft field reached
 // zero before this instance could be advanced passed currentDate. Returns
 // true if Advance generated new entries or false otherwise.
 func (r *RecurringEntry) Advance(
     currentDate time.Time, appendedNewEntries *[]*Entry) (advanced bool) {
   for !r.Date.After(currentDate) {
-    // Are we out?
-    if r.NumLeft == 0 {
+    var newEntry Entry
+    if !r.AdvanceOnce(&newEntry) {
       break
     }
-    newEntry := r.Entry
-    newEntry.Id = 0
     *appendedNewEntries = append(*appendedNewEntries, &newEntry)
-    r.Date = r.Period.AddTo(r.Date)
-    if r.NumLeft > 0 {
-      r.NumLeft--
-    }
     advanced = true
   }
   return

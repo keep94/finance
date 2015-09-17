@@ -1,8 +1,10 @@
 package recurringlist
 
 import (
+  "errors"
   "fmt"
   "github.com/keep94/appcommon/date_util"
+  "github.com/keep94/appcommon/db"
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
@@ -23,6 +25,14 @@ var (
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
+<center>
+{{if .Error}}
+  <span class="error">{{.Error.Error}}</span>
+{{end}}
+{{if .Message}}
+  <font color="#006600"><b>{{.Message}}</b></font>
+{{end}}
+</center>
 <a href="{{.NewEntryLink .AccountId}}">New Recurring Entry</a><br><br>
 {{if .EntriesToAddCount}}
   <form method="POST" action="/fin/applyrecurring">
@@ -39,6 +49,7 @@ var (
       <td>Name</td>
       <td>Amount</td>
       <td>Account</td>
+      <td>&nbsp;</td>
     </tr>
   {{range .Values}}
       <tr class="lineitem">
@@ -47,6 +58,12 @@ var (
         <td><a href="{{$top.EntryLink .Id}}">{{.Name}}</a></td>
         <td align=right>{{FormatUSD .Total}}</td>
         <td>{{$top.AcctName .CatPayment}}</td>
+        <td rowspan="2" bgcolor="#FFFFFF">
+          <form method="POST">
+            <input type="hidden" name="rid" value="{{.Id}}">
+            <input type="submit" value="Skip">
+          </form>
+        </td>
       </tr>
       <tr>
         <td>
@@ -54,7 +71,7 @@ var (
         </td>
         <td>Every {{.Period.Count}} {{.Period.Unit}}</td>
         <td>{{$top.NumLeft .NumLeft}}</td>
-        <td colspan=2>{{.Desc}}</td>
+        <td colspan="2">{{.Desc}}</td>
       </tr>
   {{end}}
   </table>
@@ -68,14 +85,37 @@ var (
   kTemplate *template.Template
 )
 
+type Store interface {
+  findb.RecurringEntrySkipper
+  findb.RecurringEntriesRunner
+}
+
 type Handler struct {
   Cdc categoriesdb.Getter
-  Store findb.RecurringEntriesRunner
+  Doer db.Doer
   Clock date_util.Clock
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
+  session := common.GetUserSession(r)
+  store := session.Store.(Store)
+  var postErr error
+  var message string
+  if r.Method == "POST" {
+    rid, _ := strconv.ParseInt(r.Form.Get("rid"), 10, 64)
+    var skipped bool
+    postErr = h.Doer.Do(func(t db.Transaction) error {
+      var err error
+      skipped, err = findb.SkipRecurringEntry(t, store, rid)
+      return err
+    })
+    if skipped {
+      message = "Recurring entry skipped."
+    } else if postErr == nil {
+      postErr = errors.New("Cannot advance. None left.")
+    }
+  }
   acctId, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
   cds, _ := h.Cdc.Get(nil)
   var entries []*fin.RecurringEntry
@@ -91,13 +131,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           return nil
         }))
   }
-  err := h.Store.RecurringEntries(nil, consumer)
+  err := store.RecurringEntries(nil, consumer)
   if err != nil {
     http_util.ReportError(w, "Error reading database.", err)
     return
   }
   currentDate := date_util.TimeToDate(h.Clock.Now())
-  count, err := findb.ApplyRecurringEntriesDryRun(nil, h.Store, currentDate)
+  count, err := findb.ApplyRecurringEntriesDryRun(nil, store, currentDate)
   if err != nil {
     http_util.ReportError(
         w, "Error doing apply recurring entries dry run.", err)
@@ -112,7 +152,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           Values: entries,
           AccountId: acctId,
           Today: currentDate,
-          EntriesToAddCount: count})
+          EntriesToAddCount: count,
+          Error: postErr,
+          Message: message})
 }
 
 type view struct {
@@ -122,6 +164,8 @@ type view struct {
   AccountId int64
   Today time.Time
   EntriesToAddCount int
+  Error error
+  Message string
 }
 
 func (v *view) NumLeft(numLeft int) string {

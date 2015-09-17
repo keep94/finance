@@ -315,6 +315,38 @@ type RecurringEntriesApplier interface {
   RecurringEntriesRunner
 }
 
+type RecurringEntrySkipper interface {
+  RecurringEntryByIdRunner
+  UpdateRecurringEntryRunner
+}
+
+// SkipRecurringEntry advances the recurring entry with given id without
+// creating a new entry for it.
+// t is the database transaction and must be non-nil.
+// Returns true if the entry was skipped or false if the NumLeft field
+// has already reached 0.
+func SkipRecurringEntry(
+    t db.Transaction,
+    store RecurringEntrySkipper,
+    id int64) (bool, error) {
+  if t == nil {
+    panic("non nil transaction required.")
+  }
+  var entry fin.RecurringEntry
+  if err := store.RecurringEntryById(t, id, &entry); err != nil {
+    return false, err
+  }
+  // If we didn't advance we are done
+  if !entry.AdvanceOnce(nil) {
+    return false, nil
+  }
+  if err := store.UpdateRecurringEntry(t, &entry); err != nil {
+    return false, err
+  }
+  return true, nil
+}
+
+
 // ApplyRecurringEntriesDryRun returns out how many new entries would be
 // added to the database if ApplyRecurringEntries were run.
 // t is the database transaction.

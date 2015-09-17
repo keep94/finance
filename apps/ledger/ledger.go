@@ -100,7 +100,7 @@ func main() {
   mux.Handle(
       "/fin/recurringlist",
       &recurringlist.Handler{
-          Store: kStore, Cdc: kCatDetailCache, Clock: kClock})
+          Doer: kDoer, Cdc: kCatDetailCache, Clock: kClock})
   mux.Handle(
       "/fin/account",
       &account.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})
