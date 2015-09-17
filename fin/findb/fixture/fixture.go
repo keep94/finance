@@ -562,6 +562,14 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   everyTwoWeeksId := addRecurringEntryWithPeriod(
       t, store, date_util.YMD(2015, 9, 24),
       14, fin.Days, 5900, -1)
+  var cpb fin.CatPaymentBuilder
+  cpb.AddCatRec(&fin.CatRec{C: fin.NewCat("0:10"), A: 10000})
+  cpb.AddCatRec(&fin.CatRec{C: fin.NewCat("2:2"), A: 7100})
+  cpb.SetPaymentId(1)
+  cp := cpb.Build()
+  valentinesDayId := addRecurringEntryWithPeriodAndCatPayment(
+      t, store, date_util.YMD(2015, 2, 14),
+      4, fin.Months, &cp, -1)
 
   // Skip finiteId once advancing it by 1 month
   var skipped bool
@@ -599,19 +607,42 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   verifyRecurringEntriesSortedByDate(t, addedEntries)
 
   // Do dry run
-  count, err := findb.ApplyRecurringEntriesDryRun(nil, store, date_util.YMD(2015, 11, 10))
+  count, err := findb.ApplyRecurringEntriesDryRun(nil, store, 0, date_util.YMD(2015, 11, 10))
   if err != nil {
     t.Errorf("Got database error doing dry run: %v", err)
   }
-  if count != 10 {
-    t.Errorf("Expected that 10 entries will be added, got %d", count)
+  if count != 13 {
+    t.Errorf("Expected that 13 entries will be added, got %d", count)
   }
 
-  // Apply recurring entries
+  // Do dry run with only account 2
+  count, err = findb.ApplyRecurringEntriesDryRun(nil, store, 2, date_util.YMD(2015, 11, 10))
+  if err != nil {
+    t.Errorf("Got database error doing dry run: %v", err)
+  }
+  if count != 3 {
+    t.Errorf("Expected that 3 entries will be added, got %d", count)
+  }
+
+  // Apply recurring entries for account 2
   count = 0
   err = f.Doer.Do(func (t db.Transaction) error {
     var err error
-    count, err = findb.ApplyRecurringEntries(t, store, date_util.YMD(2015, 11, 10))
+    count, err = findb.ApplyRecurringEntries(t, store, 2, date_util.YMD(2015, 11, 10))
+    return err
+  })
+  if err != nil {
+    t.Fatalf("Error applying recurring entries.")
+  }
+  if count != 3 {
+    t.Errorf("Expected 3 entries to be added, got %d", count)
+  }
+
+  // Apply rest of recurring entries should be 10 = 13 - 3
+  count = 0
+  err = f.Doer.Do(func (t db.Transaction) error {
+    var err error
+    count, err = findb.ApplyRecurringEntries(t, store, 0, date_util.YMD(2015, 11, 10))
     return err
   })
   if err != nil {
@@ -624,7 +655,7 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   // Test idempotency
 
   // Do dry run
-  count, err = findb.ApplyRecurringEntriesDryRun(nil, store, date_util.YMD(2015, 11, 10))
+  count, err = findb.ApplyRecurringEntriesDryRun(nil, store, 0, date_util.YMD(2015, 11, 10))
   if err != nil {
     t.Errorf("Got database error doing dry run: %v", err)
   }
@@ -636,7 +667,7 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   count = 657
   err = f.Doer.Do(func (t db.Transaction) error {
     var err error
-    count, err = findb.ApplyRecurringEntries(t, store, date_util.YMD(2015, 11, 10))
+    count, err = findb.ApplyRecurringEntries(t, store, 0, date_util.YMD(2015, 11, 10))
     return err
   })
   if err != nil {
@@ -650,16 +681,20 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   verifyRecurringEntry(t, store, infiniteId, date_util.YMD(2015, 12, 10), 16)
   verifyRecurringEntry(t, store, finiteId, date_util.YMD(2015, 10, 20), 0)
   verifyRecurringEntry(t, store, christmasId, date_util.YMD(2015, 12, 25), -1)
+  verifyRecurringEntry(t, store, newYearId, date_util.YMD(2015, 1, 1), 0)
   verifyRecurringEntry(t, store, everyTwoWeeksId, date_util.YMD(2015, 11, 19), -1)
+  verifyRecurringEntry(t, store, valentinesDayId, date_util.YMD(2016, 2, 14), -1)
 
   // verify entries
   verifyEntryDates(t, store, 1,
-      -48600, 10,
+      -99900, 13,
       date_util.YMD(2015, 11, 10), date_util.YMD(2015, 11, 5),
-      date_util.YMD(2015, 10, 22), date_util.YMD(2015, 10, 10),
-      date_util.YMD(2015, 10, 8), date_util.YMD(2015, 9, 24),
-      date_util.YMD(2015, 9, 20), date_util.YMD(2015, 9, 10),
-      date_util.YMD(2015, 8, 20), date_util.YMD(2015, 8, 10))
+      date_util.YMD(2015, 10, 22), date_util.YMD(2015, 10, 14),
+      date_util.YMD(2015, 10, 10), date_util.YMD(2015, 10, 8),
+      date_util.YMD(2015, 9, 24), date_util.YMD(2015, 9, 20),
+      date_util.YMD(2015, 9, 10), date_util.YMD(2015, 8, 20),
+      date_util.YMD(2015, 8, 10), date_util.YMD(2015, 6, 14),
+      date_util.YMD(2015, 2, 14))
 
   // Test removing recurring entries
   deleteRecurringEntry(t, store, infiniteId)
@@ -749,12 +784,12 @@ func changeEntries(
 
 func initRecurringEntry(
     date time.Time, count int, unit fin.RecurringUnit,
-    amount int64, numLeft int, entry *fin.RecurringEntry) {
+    cp *fin.CatPayment, numLeft int, entry *fin.RecurringEntry) {
   entry.Date = date
   entry.Period.Count = count
   entry.Period.Unit = unit
   entry.NumLeft = numLeft
-  entry.CatPayment = fin.NewCatPayment(fin.Expense, amount, false, 1)
+  entry.CatPayment = *cp
 }
 
 func addRecurringEntry(
@@ -766,6 +801,7 @@ func addRecurringEntry(
   return addRecurringEntryWithPeriod(
       t, store, date, 1, fin.Months, amount, numLeft)
 }
+
 func addRecurringEntryWithPeriod(
     t *testing.T,
     store findb.AddRecurringEntryRunner,
@@ -774,9 +810,22 @@ func addRecurringEntryWithPeriod(
     unit fin.RecurringUnit,
     amount int64,
     numLeft int) int64 {
+  cp := fin.NewCatPayment(fin.Expense, amount, false, 1)
+  return addRecurringEntryWithPeriodAndCatPayment(
+      t, store, date, count, unit, &cp, numLeft)
+}
+
+func addRecurringEntryWithPeriodAndCatPayment(
+    t *testing.T,
+    store findb.AddRecurringEntryRunner,
+    date time.Time,
+    count int,
+    unit fin.RecurringUnit,
+    cp *fin.CatPayment,
+    numLeft int) int64 {
   var entry fin.RecurringEntry
   initRecurringEntry(
-      date, count, unit, amount, numLeft, &entry)
+      date, count, unit, cp, numLeft, &entry)
   if err := store.AddRecurringEntry(nil, &entry); err != nil {
     t.Fatalf("Error creating recurring entries: %v", err)
   }

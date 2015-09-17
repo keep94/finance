@@ -351,12 +351,16 @@ func SkipRecurringEntry(
 // added to the database if ApplyRecurringEntries were run.
 // t is the database transaction.
 // store is the database store.
+// If acctId is non-zero, ApplyRecurringEntriesDryRun considers only
+// the outstanding recurring entries pertaining to that account.
 // currentDate is the current date.
 func ApplyRecurringEntriesDryRun(
     t db.Transaction,
     store RecurringEntriesRunner,
+    acctId int64,
     currentDate time.Time) (int, error) {
-  _, entriesToAdd, err := applyRecurringEntriesDryRun(t, store, currentDate)
+  _, entriesToAdd, err := applyRecurringEntriesDryRun(
+      t, store, acctId, currentDate)
   return len(entriesToAdd), err
 }
 
@@ -367,22 +371,24 @@ func ApplyRecurringEntriesDryRun(
 // nothing and returns 0. Note that ApplyRecurringEntries is idempotent.
 // t is the database transaction and must be non-nil.
 // store is the database store.
+// If acctId is non-zero, ApplyRecurringEntries applies only the outstanding
+// recurring entries pertaining to that account.
 // currentDate is the current date.
 func ApplyRecurringEntries(
     t db.Transaction,
     store RecurringEntriesApplier,
+    acctId int64,
     currentDate time.Time) (int, error) {
   if t == nil {
     panic("non nil transaction required.")
   }
   recurringEntries, entries, err := applyRecurringEntriesDryRun(
-      t, store, currentDate)
+      t, store, acctId, currentDate)
   if err != nil {
     return 0, err
   }
   for i := range recurringEntries {
-    if err := store.UpdateRecurringEntry(
-        t, recurringEntries[i]); err != nil {
+    if err := store.UpdateRecurringEntry(t, recurringEntries[i]); err != nil {
       return 0, err
     }
   }
@@ -396,12 +402,16 @@ func ApplyRecurringEntries(
 func applyRecurringEntriesDryRun(
     t db.Transaction,
     store RecurringEntriesRunner,
+    acctId int64,
     currentDate time.Time) (
         recurringEntriesToUpdate []*fin.RecurringEntry,
         entriesToAdd []*fin.Entry,
         err error) {
-  if err = store.RecurringEntries(
-      t, consume.AppendPtrsTo(&recurringEntriesToUpdate, nil)); err != nil {
+  consumer := consume.AppendPtrsTo(&recurringEntriesToUpdate, nil)
+  if acctId != 0 {
+    consumer = functional.FilterConsumer(consumer, accountFilter(acctId))
+  }
+  if err = store.RecurringEntries(t, consumer); err != nil {
     return
   }
   idx := 0
@@ -413,4 +423,15 @@ func applyRecurringEntriesDryRun(
   }
   recurringEntriesToUpdate = recurringEntriesToUpdate[:idx]
   return
+}
+
+func accountFilter(acctId int64) functional.Filterer {
+  return functional.NewFilterer(func(ptr interface{}) error {
+    re := ptr.(*fin.RecurringEntry)
+    cp := re.CatPayment
+    if !cp.WithPayment(acctId) {
+      return functional.Skipped
+    }
+    return nil
+  })
 }
