@@ -2,7 +2,6 @@
 package for_sqlite
 
 import (
-  "code.google.com/p/gosqlite/sqlite"
   "errors"
   "fmt"
   "github.com/keep94/appcommon/db"
@@ -12,6 +11,7 @@ import (
   "github.com/keep94/finance/fin/findb"
   "github.com/keep94/gofunctional3/consume"
   "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/gosqlite/sqlite"
   "strconv"
   "strings"
   "time"

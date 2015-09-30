@@ -3,10 +3,10 @@
 package for_sqlite
 
 import (
-  "code.google.com/p/gosqlite/sqlite"
   "github.com/keep94/appcommon/db"
   "github.com/keep94/appcommon/db/sqlite_db"
   "github.com/keep94/finance/fin/autoimport/qfx/qfxdb"
+  "github.com/keep94/gosqlite/sqlite"
 )
 
 const (

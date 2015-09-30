@@ -1,7 +1,6 @@
 package main
 
 import (
-  "code.google.com/p/gosqlite/sqlite"
   "flag"
   "fmt"
   "github.com/keep94/appcommon/db"
@@ -12,6 +11,7 @@ import (
   "github.com/keep94/finance/fin/findb/for_sqlite"
   "github.com/keep94/finance/fin/findb/sqlite_setup"
   "github.com/keep94/gofunctional3/consume"
+  "github.com/keep94/gosqlite/sqlite"
   "strings"
 )
 

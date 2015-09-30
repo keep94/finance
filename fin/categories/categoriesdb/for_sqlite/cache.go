@@ -1,12 +1,12 @@
 package for_sqlite
 
 import (
-  "code.google.com/p/gosqlite/sqlite"
   "github.com/keep94/appcommon/db"
   "github.com/keep94/appcommon/db/sqlite_db"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
   "github.com/keep94/finance/fin/categories/categoriesdb"
+  "github.com/keep94/gosqlite/sqlite"
   "sync"
 )
 

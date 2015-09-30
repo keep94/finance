@@ -2,7 +2,7 @@
 package sqlite_setup
 
 import (
-  "code.google.com/p/gosqlite/sqlite"
+  "github.com/keep94/gosqlite/sqlite"
 )
 
 // SetUpTables creates all needed tables in database.

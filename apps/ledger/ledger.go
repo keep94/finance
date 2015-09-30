@@ -1,7 +1,6 @@
 package main
 
 import (
-  "code.google.com/p/gosqlite/sqlite"
   "flag"
   "fmt"
   "github.com/gorilla/context"
@@ -36,6 +35,7 @@ import (
   qfxsqlite "github.com/keep94/finance/fin/autoimport/qfx/qfxdb/for_sqlite"
   csqlite "github.com/keep94/finance/fin/categories/categoriesdb/for_sqlite"
   "github.com/keep94/finance/fin/findb/for_sqlite"
+  "github.com/keep94/gosqlite/sqlite"
   "github.com/keep94/ramstore"
   "github.com/keep94/weblogs"
   "net/http"
