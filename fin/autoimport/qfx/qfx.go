@@ -2,6 +2,7 @@
 package qfx
 
 import (
+  "bytes"
   "errors"
   "github.com/keep94/appcommon/date_util"
   "github.com/keep94/appcommon/db"
@@ -10,6 +11,7 @@ import (
   "github.com/keep94/finance/fin/autoimport/qfx/qfxdb"
   "github.com/keep94/gofunctional3/functional"
   "io"
+  "regexp"
   "strings"
   "time"
 )
@@ -22,6 +24,44 @@ const (
   kStmtTrnClose = "</STMTTRN>"
   kFitId = "<FITID>"
 )
+
+var (
+  kQFXHeaderPattern = regexp.MustCompile(`^\s*[A-Z]+:[A-Z0-9]+\s*$`)
+  kXMLTagPattern = regexp.MustCompile(`</?[A-Z]+>`)
+)
+
+// byXMLToken returns a stream of [2]string given a QFX XML body.
+// The first string is the XML open or close tag; the second string is
+// the contents. The caller must call Close() on the returned stream.
+func byXMLToken(contents []byte) functional.Stream {
+  return functional.NewGenerator(func(e functional.Emitter) error {
+    var ptr interface{}
+    var opened bool
+    if ptr, opened = e.EmitPtr(); !opened {
+      return nil
+    }
+    allTagIndexes := kXMLTagPattern.FindAllIndex(contents, -1)
+    tagCount := len(allTagIndexes)
+    if tagCount == 0 {
+      functional.WaitForClose(e)
+      return nil
+    }
+    for i := 0; i < tagCount - 1; i++ {
+      tagSlice := ptr.([]string)
+      tagSlice[0] = string(contents[allTagIndexes[i][0]:allTagIndexes[i][1]])
+      tagSlice[1] = string(contents[allTagIndexes[i][1]:allTagIndexes[i+1][0]])
+      if ptr, opened = e.Return(nil); !opened {
+        return nil
+      }
+    }
+    tagSlice := ptr.([]string)
+    tagSlice[0] = string(contents[allTagIndexes[tagCount - 1][0]:allTagIndexes[tagCount - 1][1]])
+    tagSlice[1] = string(contents[allTagIndexes[tagCount - 1][1]:])
+    e.Return(nil)
+    functional.WaitForClose(e)
+    return nil
+  })
+}
 
 // QFXLoader implements the autoimport.Loader interface for QFX files.
 type QFXLoader struct {
@@ -38,40 +78,63 @@ func (q QFXLoader) Load(
   fileStream := functional.ReadLines(r)
   var line string
   var err error
+
+  // skip over QFX headers for now
+  for err = fileStream.Next(&line); err == nil; err = fileStream.Next(&line) {
+    if !kQFXHeaderPattern.MatchString(line) {
+      break
+    }
+  }
+
+  // Load the XML body into this buffer
+  var qfxContents bytes.Buffer
+
+  for ; err == nil; err = fileStream.Next(&line) {
+    line = strings.TrimSpace(line)
+    qfxContents.Write([]byte(line))
+  }
+
+  // Return any errors from reading the file.
+  if (err != functional.Done) {
+    return nil, err
+  }
+
+  // We break the XML body into a stream of tags and contents.
+  tagStream := byXMLToken(qfxContents.Bytes())
+  defer tagStream.Close()
+
   qe := &qfxEntry{}
   var result []*qfxEntry
-  for err = fileStream.Next(&line); err == nil; err = fileStream.Next(&line) {
-    line = strings.TrimSpace(line)
-    if line == "" {
-      continue
-    }
-    if strings.HasPrefix(line, kDtPosted) {
-      qe.entry.Date, err = parseQFXDate(line[len(kDtPosted):])
+  var tagAndContents [2]string
+  for err = tagStream.Next(tagAndContents[:]); err == nil; err = tagStream.Next(tagAndContents[:]) {
+    tag := tagAndContents[0]
+    contents := tagAndContents[1]
+    if tag == kDtPosted {
+      qe.entry.Date, err = parseQFXDate(contents)
       if err != nil {
         return nil, err
       }
-    } else if strings.HasPrefix(line, kName) {
-      qe.entry.Name = strings.Replace(line[len(kName):], "&amp;", "&", -1)
-    } else if strings.HasPrefix(line, kCheckNum) {
-      qe.entry.CheckNo = line[len(kCheckNum):]
-    } else if strings.HasPrefix(line, kTrnAmt) {
+    } else if tag == kName {
+      qe.entry.Name = strings.Replace(contents, "&amp;", "&", -1)
+    } else if tag == kCheckNum {
+      qe.entry.CheckNo = contents
+    } else if tag == kTrnAmt {
       var amt int64
-      amt, err = fin.ParseUSD(line[len(kTrnAmt):])
+      amt, err = fin.ParseUSD(contents)
       if err != nil {
         return nil, err
       }
       qe.entry.CatPayment = fin.NewCatPayment(fin.Expense, -amt, true, accountId)
-    } else if strings.HasPrefix(line, kFitId) {
-      qe.fitId = line[len(kFitId):]
-    } else if strings.HasPrefix(line, kStmtTrnClose) {
+    } else if tag == kFitId {
+      qe.fitId = contents
+    } else if tag == kStmtTrnClose {
+      // No meaningful contents with this closing tag. This closing tag
+      // means that we are done with an entry.
       if !qe.entry.Date.Before(startDate) {
         result = append(result, qe)
       }
       qe = &qfxEntry{}
     }
-  }
-  if (err != functional.Done) {
-    return nil, err
   }
   return &qfxBatch{store: q.Store, accountId: accountId, qfxEntries: result}, nil
 }

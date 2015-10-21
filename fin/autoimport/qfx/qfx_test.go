@@ -95,6 +95,34 @@ NEWFILEUID:NONE
 </CREDITCARDMSGSRSV1>
 </OFX>`
 
+const kAmexQfx = `
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS><DTSERVER>20121115120000[0:GMT]<LANGUAGE>ENG<FI><ORG>ISC<FID>10898</FI><INTU.BID>10898</SONRS></SIGNONMSGSRSV1><CREDITCARDMSGSRSV1><CCSTMTTRNRS><TRNUID>1<STATUS><CODE>0<SEVERITY>INFO<MESSAGE>Success</STATUS><CCSTMTRS><CURDEF>USD<CCACCTFROM><ACCTID>4147202080404005</CCACCTFROM><BANKTRANLIST><DTSTART>20121115120000[0:GMT]<DTEND>20121115120000[0:GMT]<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20121113120000[0:GMT]<TRNAMT>-109.01<FITID>10200<NAME>WHOLEFDS LAT 10155</STMTTRN><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20121114120000[0:GMT]<TRNAMT>-100.75<FITID>10201<NAME>WHOLEFDS LAT 10155</STMTTRN><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20121114120000[0:GMT]<TRNAMT>-57.14<FITID>10202<NAME>Amazon.com</STMTTRN><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20121115120000[0:GMT]<TRNAMT>-12.12<FITID>10203<NAME>safeway</STMTTRN></BANKTRANLIST><LEDGERBAL><BALAMT>-3392.62<DTASOF>20121115120000[0:GMT]</LEDGERBAL><AVAILBAL><BALAMT>21714.00<DTASOF>20121115120000[0:GMT]</AVAILBAL></CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>`
+
+func TestReadQFXBadFile(t *testing.T) {
+  r := strings.NewReader("A bad file\nNo QFX things in here\n")
+  var loader autoimport.Loader
+  loader = QFXLoader{make(storeType)}
+  batch, err := loader.Load(3, "", r, date_util.YMD(2012, 11, 14))
+  if err != nil {
+    t.Errorf("Got error %v", err)
+    return
+  }
+  entries := batch.Entries()
+  if len(entries) != 0 {
+    t.Errorf("Expected to read no entries, but read %d entries.", len(entries))
+  }
+}
+
 func TestReadQFX(t *testing.T) {
   r := strings.NewReader(kSampleQfx)
   var loader autoimport.Loader
@@ -121,6 +149,19 @@ func TestReadQFX(t *testing.T) {
           CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 1212}).Build()}}
   if !reflect.DeepEqual(expectedEntries, entries) {
     t.Errorf("Expected %v, got %v", expectedEntries, entries)
+  }
+
+  ramex := strings.NewReader(kAmexQfx)
+  var amexLoader autoimport.Loader
+  amexLoader = QFXLoader{make(storeType)}
+  amexBatch, err := amexLoader.Load(3, "", ramex, date_util.YMD(2012, 11, 14))
+  if err != nil {
+    t.Errorf("Got error loading amex %v", err)
+    return
+  }
+  amexEntries := amexBatch.Entries()
+  if !reflect.DeepEqual(expectedEntries, amexEntries) {
+    t.Errorf("Expected amex %v, got %v", expectedEntries, amexEntries)
   }
 }
 
