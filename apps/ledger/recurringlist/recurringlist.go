@@ -61,7 +61,8 @@ var (
         <td rowspan="2" bgcolor="#FFFFFF">
           <form method="POST">
             <input type="hidden" name="rid" value="{{.Id}}">
-            <input type="submit" value="Skip">
+            <input type="submit" name="skip" value="Skip">
+            <input type="submit" name="apply" value="Apply">
           </form>
         </td>
       </tr>
@@ -107,8 +108,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     rid, _ := strconv.ParseInt(r.Form.Get("rid"), 10, 64)
     if rid == 0 {
       message, postErr = h.applyRecurringEntries(store, acctId)
-    } else {
+    } else if http_util.HasParam(r.Form, "skip") {
       message, postErr = h.skipEntry(store, rid)
+    } else if http_util.HasParam(r.Form, "apply") {
+      message, postErr = h.applyEntry(store, rid)
     }
   }
   cds, _ := h.Cdc.Get(nil)
@@ -184,6 +187,23 @@ func (h *Handler) skipEntry(
   })
   if skipped {
     message = "Recurring entry skipped."
+  } else if err == nil {
+    err = errors.New("Cannot advance. None left.")
+  }
+  return
+}
+
+func (h *Handler) applyEntry(
+    store findb.RecurringEntryApplier,
+    rid int64) (message string, err error) {
+  var applied bool
+  err = h.Doer.Do(func(t db.Transaction) error {
+    var err error
+    applied, err = findb.ApplyRecurringEntry(t, store, rid)
+    return err
+  })
+  if applied {
+    message = "Recurring entry aplied."
   } else if err == nil {
     err = errors.New("Cannot advance. None left.")
   }

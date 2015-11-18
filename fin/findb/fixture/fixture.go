@@ -402,7 +402,6 @@ func (f EntryAccountFixture) ConcurrentUpdateDetection(
 
   // entry 2 transfers money from account 2 to account 1
   oldAmt := -entryWithEtag.Total()
-  fmt.Println(oldAmt)
   newCp := fin.NewCatPayment(fin.NewCat("2:1"), oldAmt + 132, true, 2)
   ec := findb.EntryChanges{
     Updates: map[int64]functional.Filterer {
@@ -552,7 +551,7 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   f.createAccounts(t, store)
 
   finiteId := addRecurringEntry(
-      t, store, date_util.YMD(2015, 7, 20), 3100, 3)
+      t, store, date_util.YMD(2015, 6, 20), 3100, 4)
   infiniteId := addRecurringEntry(
       t, store, date_util.YMD(2015, 8, 10), 4700, 20)
   christmasId := addRecurringEntry(
@@ -571,9 +570,24 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
       t, store, date_util.YMD(2015, 2, 14),
       4, fin.Months, &cp, -1)
 
+  // Apply finiteId once advancing it by 1 month
+  var applied bool
+  err := f.Doer.Do(func (t db.Transaction) error {
+    var err error
+    applied, err = findb.ApplyRecurringEntry(t, store, finiteId)
+    return err
+  })
+  if err != nil {
+    t.Fatalf("Error applying recurring entry.")
+  }
+  if !applied {
+    t.Error("Expected finiteId entry to be applied.")
+  }
+
+
   // Skip finiteId once advancing it by 1 month
   var skipped bool
-  err := f.Doer.Do(func (t db.Transaction) error {
+  err = f.Doer.Do(func (t db.Transaction) error {
     var err error
     skipped, err = findb.SkipRecurringEntry(t, store, finiteId)
     return err
@@ -583,6 +597,19 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   }
   if !skipped {
     t.Error("Expected finiteId entry to be skipped.")
+  }
+
+  // Applying newYearId should return false
+  err = f.Doer.Do(func (t db.Transaction) error {
+    var err error
+    applied, err = findb.ApplyRecurringEntry(t, store, newYearId)
+    return err
+  })
+  if err != nil {
+    t.Fatalf("Error applying recurring entry.")
+  }
+  if applied {
+    t.Error("Expected newYearId entry not to be applied.")
   }
 
   // Skipping newYearId should return false
@@ -687,14 +714,14 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
 
   // verify entries
   verifyEntryDates(t, store, 1,
-      -99900, 13,
+      -103000, 14,
       date_util.YMD(2015, 11, 10), date_util.YMD(2015, 11, 5),
       date_util.YMD(2015, 10, 22), date_util.YMD(2015, 10, 14),
       date_util.YMD(2015, 10, 10), date_util.YMD(2015, 10, 8),
       date_util.YMD(2015, 9, 24), date_util.YMD(2015, 9, 20),
       date_util.YMD(2015, 9, 10), date_util.YMD(2015, 8, 20),
-      date_util.YMD(2015, 8, 10), date_util.YMD(2015, 6, 14),
-      date_util.YMD(2015, 2, 14))
+      date_util.YMD(2015, 8, 10), date_util.YMD(2015, 6, 20),
+      date_util.YMD(2015, 6, 14), date_util.YMD(2015, 2, 14))
 
   // Test removing recurring entries
   deleteRecurringEntry(t, store, infiniteId)
