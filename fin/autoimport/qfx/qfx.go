@@ -103,95 +103,105 @@ func (q QFXLoader) Load(
   tagStream := byXMLToken(qfxContents.Bytes())
   defer tagStream.Close()
 
-  qe := &qfxEntry{}
-  var result []*qfxEntry
+  qe := &QfxEntry{}
+  var result []*QfxEntry
   var tagAndContents [2]string
   for err = tagStream.Next(tagAndContents[:]); err == nil; err = tagStream.Next(tagAndContents[:]) {
     tag := tagAndContents[0]
     contents := tagAndContents[1]
     if tag == kDtPosted {
-      qe.entry.Date, err = parseQFXDate(contents)
+      qe.Date, err = parseQFXDate(contents)
       if err != nil {
         return nil, err
       }
     } else if tag == kName {
-      qe.entry.Name = strings.Replace(contents, "&amp;", "&", -1)
+      qe.Name = strings.Replace(contents, "&amp;", "&", -1)
     } else if tag == kCheckNum {
-      qe.entry.CheckNo = contents
+      qe.CheckNo = contents
     } else if tag == kTrnAmt {
       var amt int64
       amt, err = fin.ParseUSD(contents)
       if err != nil {
         return nil, err
       }
-      qe.entry.CatPayment = fin.NewCatPayment(fin.Expense, -amt, true, accountId)
+      qe.CatPayment = fin.NewCatPayment(fin.Expense, -amt, true, accountId)
     } else if tag == kFitId {
-      qe.fitId = contents
+      qe.FitId = contents
     } else if tag == kStmtTrnClose {
       // No meaningful contents with this closing tag. This closing tag
       // means that we are done with an entry.
-      if !qe.entry.Date.Before(startDate) {
+      if !qe.Date.Before(startDate) {
         result = append(result, qe)
       }
-      qe = &qfxEntry{}
+      qe = &QfxEntry{}
     }
   }
-  return &qfxBatch{store: q.Store, accountId: accountId, qfxEntries: result}, nil
+  return &QfxBatch{Store: q.Store, AccountId: accountId, QfxEntries: result}, nil
 }
 
-type qfxBatch struct {
-  store qfxdb.Store
-  accountId int64
-  qfxEntries []*qfxEntry
+// QfxBatch implements the autoimport.Batch interface. Although it was
+// written for QFX files, it can be reused for any import file type as
+// long as each transaction has a unique ID like the fitId in QFX files.
+// QfxBatch instances must be treated as immutable.
+type QfxBatch struct {
+  // Stores the fitIds of imported transactions.
+  Store qfxdb.Store
+
+  // The account ID to where entries in this batch will be imported
+  AccountId int64
+
+  // The entries to be imported along with their fitIds
+  QfxEntries []*QfxEntry
 }
 
-func (q *qfxBatch) Entries() []*fin.Entry {
-  result := make([]*fin.Entry, len(q.qfxEntries))
-  for i := range q.qfxEntries {
-    e := q.qfxEntries[i].entry
+func (q *QfxBatch) Entries() []*fin.Entry {
+  result := make([]*fin.Entry, len(q.QfxEntries))
+  for i := range q.QfxEntries {
+    e := q.QfxEntries[i].Entry
     result[i] = &e
   }
   return result
 }
 
-func (q *qfxBatch) Len() int {
-  return len(q.qfxEntries)
+func (q *QfxBatch) Len() int {
+  return len(q.QfxEntries)
 }
 
-func (q *qfxBatch) SkipProcessed(t db.Transaction) (autoimport.Batch, error) {
-  existingFitIds, err := q.store.Find(t, q.accountId, q.toFitIdSet())
+func (q *QfxBatch) SkipProcessed(t db.Transaction) (autoimport.Batch, error) {
+  existingFitIds, err := q.Store.Find(t, q.AccountId, q.toFitIdSet())
   if err != nil {
     return nil, err
   }
   if existingFitIds == nil {
     return q, nil
   }
-  result := make([]*qfxEntry, len(q.qfxEntries))
+  result := make([]*QfxEntry, len(q.QfxEntries))
   idx := 0
-  for _, qe := range q.qfxEntries {
-    if !existingFitIds[qe.fitId] {
+  for _, qe := range q.QfxEntries {
+    if !existingFitIds[qe.FitId] {
       result[idx] = qe
       idx++
     }
   }
-  return &qfxBatch{store: q.store, accountId: q.accountId, qfxEntries: result[:idx]}, nil
+  return &QfxBatch{Store: q.Store, AccountId: q.AccountId, QfxEntries: result[:idx]}, nil
 }
  
-func (q *qfxBatch) MarkProcessed(t db.Transaction) error {
-  return q.store.Add(t, q.accountId, q.toFitIdSet())
+func (q *QfxBatch) MarkProcessed(t db.Transaction) error {
+  return q.Store.Add(t, q.AccountId, q.toFitIdSet())
 }
 
-func (q *qfxBatch) toFitIdSet() qfxdb.FitIdSet {
-  fitIdSet := make(qfxdb.FitIdSet, len(q.qfxEntries))
-  for _, qe := range q.qfxEntries {
-    fitIdSet[qe.fitId] = true
+func (q *QfxBatch) toFitIdSet() qfxdb.FitIdSet {
+  fitIdSet := make(qfxdb.FitIdSet, len(q.QfxEntries))
+  for _, qe := range q.QfxEntries {
+    fitIdSet[qe.FitId] = true
   }
   return fitIdSet
 }
 
-type qfxEntry struct {
-  fitId string
-  entry fin.Entry
+// QfxEntry represents an entry to be imported along with its fitId.
+type QfxEntry struct {
+  fin.Entry
+  FitId string
 }
 
 func parseQFXDate(s string) (time.Time, error) {
