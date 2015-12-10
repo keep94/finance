@@ -30,6 +30,7 @@ import (
   "github.com/keep94/finance/apps/ledger/upload"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/autoimport"
+  "github.com/keep94/finance/fin/autoimport/csv"
   "github.com/keep94/finance/fin/autoimport/qfx"
   "github.com/keep94/finance/fin/autoimport/qfx/qfxdb"
   qfxsqlite "github.com/keep94/finance/fin/autoimport/qfx/qfxdb/for_sqlite"
@@ -59,10 +60,10 @@ var (
   kDoer db.Doer
   kCatDetailCache *csqlite.Cache
   kStore for_sqlite.Store
-  kQFXLoader autoimport.Loader
+  kUploaders map[string]autoimport.Loader
   kReadOnlyCatDetailCache csqlite.ReadOnlyCache
   kReadOnlyStore for_sqlite.ReadOnlyStore
-  kReadOnlyQFXLoader autoimport.Loader
+  kReadOnlyUploaders map[string]autoimport.Loader
   kSessionStore = ramstore.NewRAMStore(kSessionTimeout)
   kClock date_util.SystemClock
 )
@@ -188,10 +189,20 @@ func setupDb(filepath string) {
   kDoer = sqlite_db.NewDoer(dbase)
   kCatDetailCache = csqlite.New(dbase)
   kStore = for_sqlite.New(dbase)
-  kQFXLoader = qfx.QFXLoader{qfxdata}
+  qfxLoader := qfx.QFXLoader{qfxdata}
+  csvLoader := csv.CsvLoader{qfxdata}
+  kUploaders = map[string]autoimport.Loader{
+      ".qfx" : qfxLoader,
+      ".ofx" : qfxLoader,
+      ".csv" : csvLoader}
   kReadOnlyCatDetailCache = csqlite.ReadOnlyWrapper(kCatDetailCache)
   kReadOnlyStore = for_sqlite.ReadOnlyWrapper(kStore)
-  kReadOnlyQFXLoader = qfx.QFXLoader{qfxdb.ReadOnlyWrapper(qfxdata)}
+  readOnlyQFXLoader := qfx.QFXLoader{qfxdb.ReadOnlyWrapper(qfxdata)}
+  readOnlyCsvLoader := csv.CsvLoader{qfxdb.ReadOnlyWrapper(qfxdata)}
+  kReadOnlyUploaders = map[string]autoimport.Loader{
+      ".qfx" : readOnlyQFXLoader,
+      ".ofx" : readOnlyQFXLoader,
+      ".csv" : readOnlyCsvLoader}
 }
 
 func setupStores(session *common.UserSession) bool {
@@ -199,12 +210,12 @@ func setupStores(session *common.UserSession) bool {
     case fin.AllPermission:
       session.Store = kStore
       session.Cache = kCatDetailCache
-      session.QFXLoader = kQFXLoader
+      session.Uploaders = kUploaders
       return true
     case fin.ReadPermission:
       session.Store = kReadOnlyStore
       session.Cache = kReadOnlyCatDetailCache
-      session.QFXLoader = kReadOnlyQFXLoader
+      session.Uploaders = kReadOnlyUploaders
       return true
     default:
       return false

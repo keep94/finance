@@ -64,7 +64,7 @@ type UserSession struct {
   Cache categoriesdb.Getter
 
   // Loads QFX files
-  QFXLoader autoimport.Loader
+  Uploaders map[string]autoimport.Loader
 }
 
 // CreateUserSession creates a UserSession instance from a gorilla session

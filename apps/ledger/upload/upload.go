@@ -17,7 +17,9 @@ import (
   "html/template"
   "io"
   "net/http"
+  "path"
   "strconv"
+  "strings"
   "time"
 )
 
@@ -124,7 +126,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   userSession := common.GetUserSession(r)
   batch := userSession.Batch(acctId)
   if batch == nil {
-    h.serveUploadPage(w, r, acctId, store, session.QFXLoader)
+    h.serveUploadPage(w, r, acctId, store, session.Uploaders)
   } else {
     h.serveConfirmPage(w, r, acctId, batch, store)
   }
@@ -203,7 +205,7 @@ func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctI
 
 func (h *Handler) serveUploadPage(
     w http.ResponseWriter, r *http.Request, acctId int64,
-    store Store, loader autoimport.Loader) {
+    store Store, uploaders map[string]autoimport.Loader) {
   account := fin.Account{}
   err := store.AccountById(nil, acctId, &account)
   if err != nil {
@@ -217,6 +219,7 @@ func (h *Handler) serveUploadPage(
     sdStr := ""
     qfxFile := bytes.Buffer{}
     var fileTooLarge bool
+    var loader autoimport.Loader
     reader, err := r.MultipartReader()
     if err != nil {
       http_util.ReportError(w, "Error reading multipart form", err)
@@ -231,6 +234,7 @@ func (h *Handler) serveUploadPage(
         }
         sdStr = buffer.String()
       } else if part.FormName() == "contents" {
+        loader = uploaders[fileExtension(part.FileName())]
         limitedReader := io.LimitedReader{R: part, N: kMaxUploadSize}
         qfxFile.ReadFrom(&limitedReader)
         fileTooLarge = limitedReader.N == 0
@@ -253,6 +257,10 @@ func (h *Handler) serveUploadPage(
     }
     if qfxFile.Len() == 0 {
       showView(w, view, errors.New("Please select a file."))
+      return
+    }
+    if loader == nil {
+      showView(w, view, errors.New("File extension not recognized."))
       return
     }
     batch, err := loader.Load(acctId, "", &qfxFile, sd)
@@ -309,6 +317,10 @@ func computeConfirmView(
     result.RBalance += v.Total()
   }
   return result
+}
+
+func fileExtension(filename string) string {
+  return strings.ToLower(path.Ext(filename))
 }
 
 func init() {
