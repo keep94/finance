@@ -5,6 +5,7 @@ import (
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
+  "github.com/keep94/finance/fin/categories"
   "github.com/keep94/finance/fin/categories/categoriesdb"
   "html/template"
   "net/http"
@@ -23,6 +24,15 @@ var (
 {{end}}
 {{if .Message}}
   <font color="#006600"><b>{{.Message}}</b></font>
+{{end}}
+{{with .AddConfirm}}
+  <form method="post">
+    <span class="error">An inactive category with that name alrady exists: </span>
+    <input type="hidden" name="makeActiveCat" value="{{.Cat}}">
+    <input type="hidden" name="name" value="{{.Name}}">
+    <input type="submit" name="makeActive" value="Activate existing category">
+    <input type="submit" name="addForSure" value="Create new category">
+  </form>
 {{end}}
 <form method="post">
 <table>
@@ -67,6 +77,21 @@ type Cache interface {
   categoriesdb.Getter
 }
 
+type adder interface {
+  categoriesdb.Adder
+  categoriesdb.AccountAdder
+}
+
+type renamer interface {
+  categoriesdb.Renamer
+  categoriesdb.AccountRenamer
+}
+
+type addConfirmType struct {
+  Cat fin.Cat
+  Name string
+}
+
 type Handler struct {
 }
 
@@ -85,22 +110,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     cds, _ := cache.Get(nil)
     cat := fin.NewCat(r.Form.Get("cat"))
     var err error
-    if http_util.HasParam(r.Form, "add") {
+    var addConfirm *addConfirmType
+    if http_util.HasParam(r.Form, "addForSure") {
       name := r.Form.Get("name")
-      if strings.HasPrefix(name, "account:") {
-        cds, _, err = cache.AccountAdd(nil, name[8:])
-      } else {
-        cds, _, err = cache.Add(nil, name)
-      }
+      cds, err = addCategory(cache, name)
       message = fmt.Sprintf("Category %s added.", name)
+    } else if http_util.HasParam(r.Form, "makeActive") {
+      name := r.Form.Get("name")
+      makeActiveCat := fin.NewCat(r.Form.Get("makeActiveCat"))
+      cds, err = renameCategory(cache, makeActiveCat, name)
+      message = fmt.Sprintf("Category %s activated.", name)
+    } else if http_util.HasParam(r.Form, "add") {
+      name := r.Form.Get("name")
+      detail, exists := cds.InactiveDetailByFullName(name)
+      if exists {
+        addConfirm = &addConfirmType{
+            Cat: detail.Id(), Name: name}
+      } else {
+        cds, err = addCategory(cache, name)
+        message = fmt.Sprintf("Category %s added.", name)
+      }
     } else if http_util.HasParam(r.Form, "rename") {
       name := r.Form.Get("name")
       oldName := cds.DetailById(cat).FullName()
-      if cat.Type == fin.AccountCat && strings.HasPrefix(name, "account:") {
-        cds, err = cache.AccountRename(nil, cat.Id, name[8:])
-      } else {
-        cds, err = cache.Rename(nil, cat, name)
-      }
+      cds, err = renameCategory(cache, cat, name)
       message = fmt.Sprintf(
           "Category %s renamed to %s.", oldName, name)
     } else if http_util.HasParam(r.Form, "remove") {
@@ -124,8 +157,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         CatDisplayer: common.CatDisplayer{cds},
         Values: values,
         Error: err,
-        Message: message})
+        Message: message,
+        AddConfirm: addConfirm})
   }
+}
+
+func addCategory(cache adder, fullName string) (
+    cds categories.CatDetailStore, err error) {
+  if strings.HasPrefix(fullName, "account:") {
+    cds, _, err = cache.AccountAdd(nil, fullName[8:])
+    return
+  }
+  cds, _, err = cache.Add(nil, fullName)
+  return
+}
+
+func renameCategory(cache renamer, cat fin.Cat, fullName string) (
+    cds categories.CatDetailStore, err error) {
+  if cat.Type == fin.AccountCat && strings.HasPrefix(fullName, "account:") {
+    cds, err = cache.AccountRename(nil, cat.Id, fullName[8:])
+    return
+  }
+  cds, err = cache.Rename(nil, cat, fullName)
+  return
 }
 
 type view struct {
@@ -133,6 +187,7 @@ type view struct {
   http_util.Values
   Error error
   Message string
+  AddConfirm *addConfirmType
 }
 
 func init() {
