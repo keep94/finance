@@ -124,6 +124,7 @@ type CatDetailStore struct {
 type catDetailStore struct {
   catIdToDetail map[fin.Cat]*detail
   fullNameToDetail map[string]*detail
+  fullNameToInactiveDetail map[string]*detail
   accountNameToDetail map[string]*detail
 }
 
@@ -177,8 +178,8 @@ func (cds CatDetailStore) ActiveCatDetails(accounts bool) []CatDetail {
 
 // PurgeableAccounts returns account ids eligible for purging. An account
 // is eligible for purging it it is inactive and not used
-// in any entry. accountSet should include the account ids used  in all
-//  entries in the data store. 
+// in any entry. accountSet should include the account ids used in all
+// entries in the data store. 
 func (cds CatDetailStore) PurgeableAccounts(
     accountSet fin.AccountSet) fin.AccountSet {
   var result fin.AccountSet
@@ -246,6 +247,24 @@ func (cds CatDetailStore) DetailsByIds(cats fin.CatSet) []CatDetail {
   result = result[:idx]
   sort.Sort(catDetails(result))
   return result
+}
+
+// InactiveDetailByFullName returns details for inactive categories
+// by category full name that can be made active again.
+// If no such category exists or is active, or can't be made active
+// because it has some ancestor category that is inactive then exists is
+// false.
+func (cds CatDetailStore) InactiveDetailByFullName(fullName string) (
+    catDetail CatDetail, exists bool) {
+  if _, alreadyActive := cds.DetailByFullName(fullName); alreadyActive {
+    return
+  }
+  d, exists := cds.data().fullNameToInactiveDetail[fullName]
+  if !exists {
+    return
+  }
+  catDetail = CatDetail{&d.catDetail}
+  return
 }
 
 // DetailByFullName returns details by category full name. If no such
@@ -695,8 +714,17 @@ func (s *catDetailsAndCatRecs) Swap(i, j int) {
   s.catrecs[i], s.catrecs[j] = s.catrecs[j], s.catrecs[i]
 }
 
+func storeFullNameToInactiveDetail(
+    fullNameToInactiveDetail map[string]*detail, d *detail) {
+  oldVal, ok := fullNameToInactiveDetail[d.fullName]
+  if !ok || d.id.Id > oldVal.id.Id {
+    fullNameToInactiveDetail[d.fullName] = d
+  }
+}
+
 func newCatDetailStore(catIdToDetail map[fin.Cat]*detail) CatDetailStore {
   fullNameToDetail := make(map[string]*detail)
+  fullNameToInactiveDetail := make(map[string]*detail)
   accountNameToDetail := make(map[string]*detail)
   for _, v := range catIdToDetail {
     computeFullNameAndActive(v, catIdToDetail)
@@ -705,11 +733,23 @@ func newCatDetailStore(catIdToDetail map[fin.Cat]*detail) CatDetailStore {
       if v.id.Type == fin.AccountCat {
         accountNameToDetail[v.name] = v
       }
+    } else {
+       if v.id.Type == fin.AccountCat {
+         storeFullNameToInactiveDetail(fullNameToInactiveDetail, v)
+       } else {
+         // it is inactive
+         parentCat := fin.Cat{Type: v.id.Type, Id: v.parentId}
+         parent := catIdToDetail[parentCat]
+         if parent != nil && parent.active {
+           storeFullNameToInactiveDetail(fullNameToInactiveDetail, v)
+         }
+       }
     }
   }
   return CatDetailStore{&catDetailStore{
       catIdToDetail: catIdToDetail,
       fullNameToDetail: fullNameToDetail,
+      fullNameToInactiveDetail: fullNameToInactiveDetail,
       accountNameToDetail: accountNameToDetail}}
 }
 

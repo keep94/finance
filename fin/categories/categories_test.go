@@ -95,7 +95,11 @@ func TestPurgeableCats(t *testing.T) {
   cds := createCatDetailStore()
   actual := cds.PurgeableCats(fin.CatTotals{toCat("0:8"): 0})
   expected := fin.CatSet {
-      toCat("0:3"): true, toCat("0:6"): true, toCat("0:7"): true}
+      toCat("0:3"): true,
+      toCat("0:6"): true,
+      toCat("0:7"): true,
+      toCat("0:98"): true,
+      toCat("0:99"): true}
   if !reflect.DeepEqual(expected, actual) {
     t.Errorf("Expected %v, got %v", expected, actual)
   }
@@ -103,8 +107,12 @@ func TestPurgeableCats(t *testing.T) {
 
 func TestPurgeableCatsUsed(t *testing.T) {
   cds := createCatDetailStore()
-  actual := cds.PurgeableCats(
-      fin.CatTotals{toCat("0:7"): 0, toCat("0:6"): 0, toCat("0:8"): 0})
+  actual := cds.PurgeableCats(fin.CatTotals{
+      toCat("0:7"): 0,
+      toCat("0:6"): 0,
+      toCat("0:8"): 0,
+      toCat("0:98"): 0,
+      toCat("0:99"): 0})
   if actual != nil {
     t.Errorf("Expected nil, got %v", actual)
   }
@@ -113,7 +121,7 @@ func TestPurgeableCatsUsed(t *testing.T) {
 func TestPurgeableAccounts(t *testing.T) {
   cds := createCatDetailStore()
   actual := cds.PurgeableAccounts(fin.AccountSet{2: true})
-  expected := fin.AccountSet{3: true}
+  expected := fin.AccountSet{3: true, 4: true, 5: true}
   if !reflect.DeepEqual(expected, actual) {
     t.Errorf("Expected %v, got %v", expected, actual)
   }
@@ -121,7 +129,8 @@ func TestPurgeableAccounts(t *testing.T) {
 
 func TestPurgeableAccountsUsed(t *testing.T) {
   cds := createCatDetailStore()
-  actual := cds.PurgeableAccounts(fin.AccountSet{2: true, 3: true})
+  actual := cds.PurgeableAccounts(
+      fin.AccountSet{2: true, 3: true, 4: true, 5: true})
   if actual != nil {
     t.Errorf("Expected nil, got %v", actual)
   }
@@ -157,6 +166,20 @@ func TestAccountDetailById(t *testing.T) {
   verifyAccountDetail(t, cds, 3, "inactive", false)
   verifyAccountDetail(t, cds, 101, "101", false)
 }
+
+func TestInvalidDetailByFullName(t *testing.T) {
+  cds := createCatDetailStore()
+  verifyInactiveDetailByFullName(t, cds, "expense:inactive", toCat("0:99"))
+  verifyInactiveDetailByFullName(
+      t, cds, "expense:charity:inactive", toCat("0:6"))
+  verifyNoInactiveDetailByFullName(t, cds, "expense:inactive:child")
+  verifyNoInactiveDetailByFullName(t, cds, "expense:car:gas")
+  verifyNoInactiveDetailByFullName(t, cds, "expense:car")
+  verifyInactiveDetailByFullName(t, cds, "account:inactive", toCat("2:4"))
+  verifyNoInactiveDetailByFullName(t, cds, "account:checking")
+  verifyNoInactiveDetailByFullName(t, cds, "account:savings")
+}
+
 
 func TestDetailByFullName(t *testing.T) {
   cds := createCatDetailStore()
@@ -350,12 +373,16 @@ func createCatDetailStore() CatDetailStore {
   // 0:6 expense:charity:inactive
   // 0:7 expense:inactive:child
   // 0:8 expense:101:childagain
+  // 0:98 expense:car:gas
+  // 0:99 expense:inactive
   // 1:1 income:google
   // 1:2 income:mtv
   // 1:3 income:google:bonus
   // 2:1 account:checking
   // 2:2 account:savings
   // 2:3 account:inactive
+  // 2:4 account:inactive
+  // 2:5 account:checking
   cdsb := CatDetailStoreBuilder{}
   account := fin.Account{
       Id: 1,
@@ -370,6 +397,16 @@ func createCatDetailStore() CatDetailStore {
   account = fin.Account{
       Id: 3,
       Name: "inactive",
+      Active: false}
+  cdsb.AddAccount(&account)
+  account = fin.Account{
+      Id: 4,
+      Name: "inactive",
+      Active: false}
+  cdsb.AddAccount(&account)
+  account = fin.Account{
+      Id: 5,
+      Name: "checking",
       Active: false}
   cdsb.AddAccount(&account)
   row := CatDbRow{
@@ -416,6 +453,17 @@ func createCatDetailStore() CatDetailStore {
       ParentId: 101,
       Name: "childagain",
       Active: true}
+  cdsb.AddCatDbRow(fin.ExpenseCat, &row)
+  row = CatDbRow{
+      Id: 98,
+      ParentId: 1,
+      Name: "gas",
+      Active: false}
+  cdsb.AddCatDbRow(fin.ExpenseCat, &row)
+  row = CatDbRow{
+      Id: 99,
+      Name: "inactive",
+      Active: false}
   cdsb.AddCatDbRow(fin.ExpenseCat, &row)
   row = CatDbRow{
       Id: 1,
@@ -483,6 +531,18 @@ func verifyDetailByFullName(t *testing.T, cds CatDetailStore, name string, cat f
   }
 }
 
+func verifyInactiveDetailByFullName(
+    t *testing.T, cds CatDetailStore, name string, cat fin.Cat) {
+  cd, ok := cds.InactiveDetailByFullName(name)
+  if !ok {
+    t.Error("Error getting inactive detail by full name.")
+    return
+  }
+  if cd.Id() != cat {
+    t.Errorf("Expected %v, got %v", cat, cd.Id())
+  }
+}
+
 func verifyAccountDetailByName(t *testing.T, cds CatDetailStore, name string, id int64) {
   ad, ok := cds.AccountDetailByName(name)
   if !ok {
@@ -498,6 +558,14 @@ func verifyNoDetailByFullName(t *testing.T, cds CatDetailStore, name string) {
   _, ok := cds.DetailByFullName(name)
   if ok {
     t.Error("Got detail by full name, but did not expect to")
+  }
+}
+
+func verifyNoInactiveDetailByFullName(
+    t *testing.T, cds CatDetailStore, name string) {
+  _, ok := cds.InactiveDetailByFullName(name)
+  if ok {
+    t.Error("Got inactive detail by full name, but did not expect to")
   }
 }
 
