@@ -85,6 +85,10 @@ body {
     <td><input type="text" name="date" value="{{.Get "date"}}"></td>
   </tr>
   <tr>
+    <td align="right">Day of Month: </td>
+    <td><input type="text" name="dayOfMonth" size="2" value="{{.Get "dayOfMonth"}}"></td>
+  </tr>
+  <tr>
     <td align="right">Name: </td>
     <td>
       <div id="nameAutoComplete">
@@ -343,6 +347,9 @@ func toView(
   result.SingleEntryView = common.ToSingleEntryView(&entry.Entry, tag, cds)
   result.Set("count", strconv.Itoa(entry.Period.Count))
   result.Set("unit", strconv.Itoa(entry.Period.Unit.ToInt()))
+  if entry.Period.DayOfMonth > 0 {
+    result.Set("dayOfMonth", strconv.Itoa(entry.Period.DayOfMonth))
+  }
   if entry.NumLeft >= 0 {
     result.Set("remaining", strconv.Itoa(entry.NumLeft))
   }
@@ -403,12 +410,35 @@ func entryMutation(values url.Values) (mutation functional.Filterer, err error) 
       return
     }
   }
+  dayOfMonthStr := values.Get("dayOfMonth")
+  var dayOfMonth int
+  if dayOfMonthStr == "" {
+    dayOfMonth = 0
+  } else {
+    if dayOfMonth, err = strconv.Atoi(dayOfMonthStr); err != nil {
+      return
+    }
+    if dayOfMonth <= 0 {
+      err = errors.New("Day of month must be greater than 0.")
+      return
+    }
+    if dayOfMonth > 31 {
+      err = errors.New("Day of month must not be greater than 31.")
+      return
+    }
+  }
+  if unit == fin.Months && dayOfMonth == 0 {
+    var temp fin.Entry
+    entryFilterer.Filter(&temp)
+    dayOfMonth = temp.Date.Day()
+  }
   mutation = functional.NewFilterer(func(ptr interface{}) error {
     p := ptr.(*fin.RecurringEntry)
     entryFilterer.Filter(&p.Entry)
     p.CheckNo = ""
     p.Period.Count = count
     p.Period.Unit = unit
+    p.Period.DayOfMonth = dayOfMonth
     p.NumLeft = numLeft
     return nil
   })

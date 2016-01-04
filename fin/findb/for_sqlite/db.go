@@ -25,10 +25,10 @@ const (
     kSQLInsertEntry = "insert into entries (date, name, desc, check_no, cats, payment, reviewed) values (?, ?, ?, ?, ?, ?, ?)"
     kSQLUpdateEntry = "update entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ? where id = ?"
     kSQLDeleteEntryById = "delete from entries where id = ?"
-    kSQLRecurringEntryById = "select id, date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left from recurring_entries where id = ?"
-    kSQLRecurringEntries = "select id, date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left from recurring_entries order by date, id"
-    kSQLInsertRecurringEntry = "insert into recurring_entries (date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    kSQLUpdateRecurringEntry = "update recurring_entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ?, count = ?, unit = ?, num_left = ? where id = ?"
+    kSQLRecurringEntryById = "select id, date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left, day_of_month from recurring_entries where id = ?"
+    kSQLRecurringEntries = "select id, date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left, day_of_month from recurring_entries order by date, id"
+    kSQLInsertRecurringEntry = "insert into recurring_entries (date, name, desc, check_no, cats, payment, reviewed, count, unit, num_left, day_of_month) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    kSQLUpdateRecurringEntry = "update recurring_entries set date = ?, name = ?, desc = ?, check_no = ?, cats = ?, payment = ?, reviewed = ?, count = ?, unit = ?, num_left = ?, day_of_month = ? where id = ?"
     kSQLDeleteRecurringEntryById = "delete from recurring_entries where id = ?"
     kSQLAccountById = "select id, name, is_active, balance, reconciled, b_count, r_count, import_sd from accounts where id = ?"
     kSQLAccounts = "select id, name, is_active, balance, reconciled, b_count, r_count, import_sd from accounts"
@@ -391,11 +391,11 @@ type rawRecurringEntry struct {
 }
 
 func (r *rawRecurringEntry) Ptrs() []interface{} {
-  return []interface{}{&r.Id, &r.re.dateStr, &r.Name, &r.Desc, &r.CheckNo, &r.re.cat, &r.re.payment, &r.re.status, &r.Period.Count, &r.unit, &r.NumLeft}
+  return []interface{}{&r.Id, &r.re.dateStr, &r.Name, &r.Desc, &r.CheckNo, &r.re.cat, &r.re.payment, &r.re.status, &r.Period.Count, &r.unit, &r.NumLeft, &r.Period.DayOfMonth}
 }
 
 func (r *rawRecurringEntry) Values() []interface{} {
-  return []interface{}{r.re.dateStr, r.Name, r.Desc, r.CheckNo, r.re.cat, r.re.payment, r.re.status, r.Period.Count, r.unit, r.NumLeft, r.Id}
+  return []interface{}{r.re.dateStr, r.Name, r.Desc, r.CheckNo, r.re.cat, r.re.payment, r.re.status, r.Period.Count, r.unit, r.NumLeft, r.Period.DayOfMonth, r.Id}
 }
 
 func (r *rawRecurringEntry) Pair(ptr interface{}) {

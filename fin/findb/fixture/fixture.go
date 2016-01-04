@@ -817,6 +817,9 @@ func initRecurringEntry(
   entry.Period.Unit = unit
   entry.NumLeft = numLeft
   entry.CatPayment = *cp
+  if entry.Period.Unit == fin.Months {
+    entry.Period.DayOfMonth = date.Day()
+  }
 }
 
 func addRecurringEntry(
@@ -1015,6 +1018,9 @@ func verifyRecurringEntry(
   }
   if entry.Date != expectedDate {
     t.Errorf("Expected date %v, got %v", expectedDate, entry.Date)
+  }
+  if entry.Period.Unit == fin.Months && entry.Period.DayOfMonth != expectedDate.Day() {
+    t.Errorf("Expected dayOfMonth %d, got %d", expectedDate.Day(), entry.Period.DayOfMonth)
   }
   if entry.NumLeft != expectedNumLeft {
     t.Errorf("Expected NumLeft %d, got %d", expectedNumLeft, entry.NumLeft)

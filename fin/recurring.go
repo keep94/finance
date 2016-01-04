@@ -56,6 +56,10 @@ type RecurringPeriod struct {
   Count int
   // The time unit.
   Unit RecurringUnit
+  // Specifies the desired day of the month. Relevant only when Unit is Months. 
+  // If <= 0 when Unit is Months, then RecurringPeriod works just like
+  // time.AddDate(0, Count, 0)
+  DayOfMonth int
 }
 
 // AddTo returns date + (this instance). If the Count field of this instance
@@ -72,7 +76,10 @@ func (r RecurringPeriod) AddTo(date time.Time) time.Time {
     case Weeks:
       return date.AddDate(0, 0, 7 * count)
     case Months:
-      return date.AddDate(0, count, 0)
+      if r.DayOfMonth <= 0 {
+        return date.AddDate(0, count, 0)
+      }
+      return addMonths(date, count, r.DayOfMonth)
     case Years:
       return date.AddDate(count, 0, 0)
     default:
@@ -146,4 +153,27 @@ func (r *RecurringEntryWithEtag) GetPtr() interface{} {
 
 func (r *RecurringEntryWithEtag) SetEtag(etag uint64) {
   r.Etag = etag
+}
+
+func withDayOfMonth(date time.Time, dayOfMonth int) time.Time {
+  return time.Date(
+      date.Year(), date.Month(), dayOfMonth, date.Hour(), date.Minute(),
+      date.Second(), date.Nanosecond(), date.Location())
+}
+
+func addMonths(date time.Time, months, dayOfMonth int) time.Time {
+  // dayOfMonth cannot exceed 31
+  if dayOfMonth > 31 {
+    dayOfMonth = 31
+  }
+  firstDayOfOriginalMonth := withDayOfMonth(date, 1)
+  firstDayOfNewMonth := firstDayOfOriginalMonth.AddDate(0, months, 0)
+  newMonthWithCorrectDayOfMonth := withDayOfMonth(
+      firstDayOfNewMonth, dayOfMonth)
+  // If our month has too few days, use the last day of the month
+  if newMonthWithCorrectDayOfMonth.Month() != firstDayOfNewMonth.Month() {
+    return newMonthWithCorrectDayOfMonth.AddDate(
+        0, 0, -newMonthWithCorrectDayOfMonth.Day())
+  }
+  return newMonthWithCorrectDayOfMonth
 }

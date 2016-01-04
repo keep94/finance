@@ -66,12 +66,65 @@ func TestPeriod(t *testing.T) {
       t,
       date_util.YMD(2015, 10, 4),
       period.AddTo(date_util.YMD(2015, 7, 4)))
+
+  // time.AddDate doesn't always honor the day of month.
+  verifyDate(
+      t,
+      date_util.YMD(2015, 3, 2),
+      period.AddTo(date_util.YMD(2014, 11, 30)))
+
   period.Count = 2
   period.Unit = Years
   verifyDate(
       t,
       date_util.YMD(2017, 8, 20),
       period.AddTo(date_util.YMD(2015, 8, 20)))
+}
+
+func TestDayOfMonth(t *testing.T) {
+  var period RecurringPeriod
+  period.Unit = Months
+  period.DayOfMonth = 31
+  verifyDate(
+      t,
+      date_util.YMD(2016, 2, 29),
+      period.AddTo(date_util.YMD(2016, 1, 31)))
+  verifyDate(
+      t,
+      date_util.YMD(2016, 3, 31),
+      period.AddTo(date_util.YMD(2016, 2, 29)))
+  verifyDate(
+      t,
+      date_util.YMD(2016, 4, 30),
+      period.AddTo(date_util.YMD(2016, 3, 31)))
+  verifyDate(
+      t,
+      date_util.YMD(2016, 5, 31),
+      period.AddTo(date_util.YMD(2016, 4, 30)))
+  verifyDate(
+      t,
+      date_util.YMD(2016, 8, 31),
+      period.AddTo(date_util.YMD(2016, 7, 31)))
+  verifyDate(
+      t,
+      date_util.YMD(2017, 1, 31),
+      period.AddTo(date_util.YMD(2016, 12, 31)))
+
+  period.Count = 3
+  period.DayOfMonth = 29
+
+  verifyDate(
+      t,
+      date_util.YMD(2015, 2, 28),
+      period.AddTo(date_util.YMD(2014, 11, 1)))
+  verifyDate(
+      t,
+      date_util.YMD(2015, 2, 28),
+      period.AddTo(date_util.YMD(2014, 11, 30)))
+  verifyDate(
+      t,
+      date_util.YMD(2015, 5, 29),
+      period.AddTo(date_util.YMD(2015, 2, 28)))
 }
 
 func TestInfiniteRecurring(t *testing.T) {
