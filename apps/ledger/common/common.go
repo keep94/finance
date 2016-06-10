@@ -3,6 +3,7 @@
 package common
 
 import (
+  "errors"
   "fmt"
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/appcommon/session_util"
@@ -21,6 +22,15 @@ import (
 
 const (
   kSessionCookieName = "session-cookie"
+)
+
+const (
+  // Set to the same thing as kSessionTimeout in ledger.go
+  kXsrfTimeout = 15 * time.Minute
+)
+
+var (
+  ErrXsrf = errors.New("Page had grown stale. Please resubmit.")
 )
 
 type RecurringUnitComboBoxType []fin.RecurringUnit
@@ -48,6 +58,25 @@ var (
 func NewGorillaSession(
     sessionStore sessions.Store, r *http.Request) (*sessions.Session, error) {
   return sessionStore.Get(r, kSessionCookieName)
+}
+
+// NewXsrfToken creates a new xsrf token for given action.
+func NewXsrfToken(r *http.Request, action string) string {
+  userSession := GetUserSession(r)
+  return userSession.NewXsrfToken(action, time.Now().Add(kXsrfTimeout))
+}
+
+// VerifyXsrfToken verifies the xsrf token for given action.
+// VerifyXsrfToken looks for the token under "xsrf" in request.
+func VerifyXsrfToken(r *http.Request, action string) bool {
+  return VerifyXsrfTokenExplicit(r.Form.Get("xsrf"), r, action)
+}
+
+// VerifyXsrfTokenExplicit verifies an explicit xsrf token for given action.
+func VerifyXsrfTokenExplicit(
+    xsrf string, r *http.Request, action string) bool {
+  userSession := GetUserSession(r)
+  return userSession.VerifyXsrfToken(xsrf, action, time.Now())
 }
 
 // UserSession represents a session where user is logged in.

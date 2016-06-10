@@ -18,6 +18,10 @@ import (
   "time"
 )
 
+const (
+  kSingle = "single"
+)
+
 var (
 kTemplateSpec = `
 <html>
@@ -68,6 +72,7 @@ body {
   <span class="error">{{.Error.Error}}</span>
 {{end}}
 <form method="post">
+<input type="hidden" name="xsrf" value="{{.Xsrf}}">
 <input type="submit" name="save" value="Save">
 <input type="submit" name="cancel" value="Cancel">
 {{if .ExistingEntry}}
@@ -194,7 +199,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
   paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
   if r.Method == "GET" {
-    h.doGet(w, id, paymentId, store, session.Cache)
+    h.doGet(w, r, id, paymentId, store, session.Cache)
   } else {
     h.doPost(w, r, id, store, session.Cache)
   }
@@ -204,7 +209,9 @@ func (h *Handler) doPost(
     w http.ResponseWriter, r *http.Request, id int64,
     store Store, cdc categoriesdb.Getter) {
   var err error
-  if http_util.HasParam(r.Form, "delete") {
+  if !common.VerifyXsrfToken(r, kSingle) {
+    err = common.ErrXsrf
+  } else if http_util.HasParam(r.Form, "delete") {
     if isIdValid(id) {
       err = deleteId(id, store)
     }
@@ -244,15 +251,22 @@ func (h *Handler) doPost(
         w,
         kTemplate,
         common.ToSingleEntryViewFromForm(
-            isIdValid(id), r.Form, cds, err))
+            isIdValid(id),
+            r.Form,
+            common.NewXsrfToken(r, kSingle),
+            cds,
+            err))
   } else {
     http_util.Redirect(w, r, r.Form.Get("prev"))
   }
 }
 
 func (h *Handler) doGet(
-    w http.ResponseWriter, id, paymentId int64,
-    store findb.EntryByIdWithEtagRunner, cdc categoriesdb.Getter) {
+    w http.ResponseWriter,
+    r *http.Request,
+    id, paymentId int64,
+    store findb.EntryByIdWithEtagRunner,
+    cdc categoriesdb.Getter) {
   var v *common.SingleEntryView
   if isIdValid(id) {
     var entryWithEtag fin.EntryWithEtag
@@ -272,14 +286,19 @@ func (h *Handler) doGet(
       http_util.ReportError(w, "Error reading database.", err)
       return
     }
-    v = common.ToSingleEntryView(&entryWithEtag.Entry, entryWithEtag.Etag, cds)
+    v = common.ToSingleEntryView(
+        &entryWithEtag.Entry,
+        entryWithEtag.Etag,
+        common.NewXsrfToken(r, kSingle),
+        cds)
   } else {
     cds, _ := cdc.Get(nil)
     values := make(url.Values)
     if paymentId > 0 {
       values.Set("payment", strconv.FormatInt(paymentId, 10))
     }
-    v = common.ToSingleEntryViewFromForm(false, values, cds, nil)
+    v = common.ToSingleEntryViewFromForm(
+        false, values, common.NewXsrfToken(r, kSingle), cds, nil)
   }
   http_util.WriteTemplate(w, kTemplate, v)
 }

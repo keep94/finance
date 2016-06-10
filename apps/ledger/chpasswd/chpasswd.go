@@ -15,6 +15,10 @@ const (
   kMinPasswordLength = 6
 )
 
+const (
+  kChPasswd = "chpasswd"
+)
+
 var (
   kTemplateSpec = `
 <html>
@@ -31,6 +35,7 @@ var (
   {{end}}
 {{end}}
 <form method="post">
+<input type="hidden" name="xsrf" value="{{.Xsrf}}">
   <table>
     <tr>
       <td>Old Password: </td>
@@ -72,9 +77,24 @@ type Handler struct {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   session := common.GetUserSession(r)
   if r.Method == "GET" {
-    http_util.WriteTemplate(w, kTemplate, &view{Name: session.User.Name})
+    http_util.WriteTemplate(
+        w,
+        kTemplate,
+        &view{
+            Name: session.User.Name,
+            Xsrf: common.NewXsrfToken(r, kChPasswd)})
   } else {
     r.ParseForm()
+    if !common.VerifyXsrfToken(r, kChPasswd) {
+      http_util.WriteTemplate(
+          w,
+          kTemplate,
+          &view{
+              Name: session.User.Name,
+              Xsrf: common.NewXsrfToken(r, kChPasswd),
+              Message: common.ErrXsrf.Error()})
+      return
+    }
     old := r.Form.Get("old")
     new := r.Form.Get("new")
     verify := r.Form.Get("verify")
@@ -82,7 +102,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       http_util.WriteTemplate(
           w,
           kTemplate,
-          &view{Name: session.User.Name, Message: "Password re-typed incorrectly."})
+          &view{
+              Name: session.User.Name,
+              Xsrf: common.NewXsrfToken(r, kChPasswd),
+              Message: "Password re-typed incorrectly."})
       return
     }
     if len(new) < kMinPasswordLength {
@@ -91,6 +114,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           kTemplate,
           &view{
               Name: session.User.Name,
+              Xsrf: common.NewXsrfToken(r, kChPasswd),
               Message: fmt.Sprintf(
                   "Password must be at least %d characters.",
                   kMinPasswordLength)})
@@ -100,7 +124,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       http_util.WriteTemplate(
           w,
           kTemplate,
-          &view{Name: session.User.Name, Message: "Old password wrong."})
+          &view{
+              Name: session.User.Name,
+              Xsrf: common.NewXsrfToken(r, kChPasswd),
+              Message: "Old password wrong."})
       return
     }
     err := h.Doer.Do(func(t db.Transaction) error {
@@ -121,6 +148,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         &view{
             Name: session.User.Name,
             Message: "Password changed successfully.",
+            Xsrf: common.NewXsrfToken(r, kChPasswd),
             Success: true})
   }
 }
@@ -128,6 +156,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type view struct {
   Name string
   Message string
+  Xsrf string
   Success bool
 }
 

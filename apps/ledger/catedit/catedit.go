@@ -12,6 +12,10 @@ import (
   "strings"
 )
 
+const (
+  kCatEdit = "catedit"
+)
+
 var (
   kTemplateSpec = `
 <html>
@@ -25,16 +29,18 @@ var (
 {{if .Message}}
   <font color="#006600"><b>{{.Message}}</b></font>
 {{end}}
-{{with .AddConfirm}}
+{{if .AddConfirm}}
   <form method="post">
     <span class="error">An inactive category with that name alrady exists: </span>
-    <input type="hidden" name="makeActiveCat" value="{{.Cat}}">
-    <input type="hidden" name="name" value="{{.Name}}">
+    <input type="hidden" name="xsrf" value="{{.Xsrf}}">
+    <input type="hidden" name="makeActiveCat" value="{{.AddConfirm.Cat}}">
+    <input type="hidden" name="name" value="{{.AddConfirm.Name}}">
     <input type="submit" name="makeActive" value="Activate existing category">
     <input type="submit" name="addForSure" value="Create new category">
   </form>
 {{end}}
 <form method="post">
+<input type="hidden" name="xsrf" value="{{.Xsrf}}">
 <table>
   <tr>
     <td>Existing category:</td>
@@ -104,14 +110,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     http_util.WriteTemplate(
         w,
         kTemplate,
-        &view{CatDisplayer: common.CatDisplayer{cds}})
+        &view{
+            CatDisplayer: common.CatDisplayer{cds},
+            Xsrf: common.NewXsrfToken(r, kCatEdit)})
   } else {
     message := ""
     cds, _ := cache.Get(nil)
     cat := fin.NewCat(r.Form.Get("cat"))
     var err error
     var addConfirm *addConfirmType
-    if http_util.HasParam(r.Form, "addForSure") {
+    if !common.VerifyXsrfToken(r, kCatEdit) {
+      err = common.ErrXsrf
+    } else if http_util.HasParam(r.Form, "addForSure") {
       name := r.Form.Get("name")
       cds, err = addCategory(cache, name)
       message = fmt.Sprintf("Category %s added.", name)
@@ -156,7 +166,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         Values: values,
         Error: err,
         Message: message,
-        AddConfirm: addConfirm})
+        AddConfirm: addConfirm,
+        Xsrf: common.NewXsrfToken(r, kCatEdit)})
   }
 }
 
@@ -186,6 +197,7 @@ type view struct {
   Error error
   Message string
   AddConfirm *addConfirmType
+  Xsrf string
 }
 
 func init() {

@@ -24,6 +24,10 @@ import (
 )
 
 const (
+  kUpload = "upload"
+)
+
+const (
   kMaxUploadSize = 1024 * 1024
   kMaxDays = 7
   kAutoCategorizeLookBack = 1000
@@ -41,6 +45,7 @@ var (
   <span class="error">{{.Error}}</span>
 {{end}}
 <form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="xsrf" value="{{.Xsrf}}">
   <table>
     <tr>
       <td>QFX file: </td>
@@ -70,6 +75,7 @@ kConfirmTemplateSpec = `
 <h2>{{.Account.Name}} Import Entries</h2>
 <form method="post">
   <input type="hidden" name="task" value="confirm">
+  <input type="hidden" name="xsrf" value="{{.Xsrf}}">
   <table>
     <tr>
       <td>New entries: </td>
@@ -153,10 +159,10 @@ func serveConfirmPageGet(
   }
   batchEntries := batch.Entries()
   reconcile.New(batchEntries).Reconcile(unreconciled, kMaxDays)
-  http_util.WriteTemplate(
+  showConfirmView(
       w,
-      kConfirmTemplate,
-      computeConfirmView(&account, batchEntries))
+      computeConfirmView(&account, batchEntries),
+      common.NewXsrfToken(r, kUpload))
 }
 
 func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctId int64, batch autoimport.Batch, store Store) {
@@ -164,8 +170,9 @@ func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctI
     serveConfirmPageGet(w, r, acctId, batch, store)
   } else {
     // We are posting. If we are getting a post from the upload form
-    // instead of the confirm form, then treat this as a GET
-    if r.Form.Get("task") != "confirm" {
+    // instead of the confirm form or the xsrf token is wrong,
+    // then treat this as a GET
+    if r.Form.Get("task") != "confirm" || !common.VerifyXsrfToken(r, kUpload) {
       serveConfirmPageGet(w, r, acctId, batch, store)
       return
     }
@@ -224,7 +231,8 @@ func serverUploadPageGet(
     w http.ResponseWriter, r *http.Request, account *fin.Account) {
   view := &view{
       Account: account,
-      StartDate: account.ImportSD.Format(date_util.YMDFormat)}
+      StartDate: account.ImportSD.Format(date_util.YMDFormat),
+      Xsrf: common.NewXsrfToken(r, kUpload)}
   showView(w, view, nil)
 }
 
@@ -240,6 +248,7 @@ func (h *Handler) serveUploadPage(
   if r.Method == "GET" {
     serverUploadPageGet(w, r, &account)
   } else {
+    xsrf := ""
     sdStr := ""
     qfxFile := bytes.Buffer{}
     var fileTooLarge bool
@@ -252,7 +261,15 @@ func (h *Handler) serveUploadPage(
       return
     }
     for part, err := reader.NextPart(); err == nil; part, err = reader.NextPart() {
-      if part.FormName() == "sd" {
+      if part.FormName() == "xsrf" {
+        buffer := bytes.Buffer{}
+        _, err = buffer.ReadFrom(part)
+        if err != nil {
+          http_util.ReportError(w, "Error reading xsrf", err)
+          return
+        }
+        xsrf = buffer.String()
+      } else if part.FormName() == "sd" {
         buffer := bytes.Buffer{}
         _, err = buffer.ReadFrom(part)
         if err != nil {
@@ -271,7 +288,14 @@ func (h *Handler) serveUploadPage(
         return
       }
     } 
-    view := &view{Account: &account, StartDate: sdStr}
+    view := &view{
+        Account: &account,
+        StartDate: sdStr,
+        Xsrf: common.NewXsrfToken(r, kUpload)}
+    if !common.VerifyXsrfTokenExplicit(xsrf, r, kUpload) {
+      showView(w, view, common.ErrXsrf)
+      return
+    }
     sd, err := time.Parse(date_util.YMDFormat, sdStr)
     if err != nil {
       showView(w, view, errors.New("Start date must be in yyyyMMdd format."))
@@ -319,7 +343,13 @@ func showView(w http.ResponseWriter, v *view, err error) {
 type view struct {
   Account *fin.Account
   StartDate string
+  Xsrf string
   Error error
+}
+
+func showConfirmView(w http.ResponseWriter, v *confirmView, xsrf string) {
+  v.Xsrf = xsrf
+  http_util.WriteTemplate(w, kConfirmTemplate, v)
 }
 
 type confirmView struct {
@@ -328,11 +358,15 @@ type confirmView struct {
   ExistingCount int
   Balance int64
   RBalance int64
+  Xsrf string
 }
 
 func computeConfirmView(
     account *fin.Account, batchEntries []*fin.Entry) *confirmView {
-  result := &confirmView{Account: account, Balance: account.Balance, RBalance: account.RBalance}
+  result := &confirmView{
+      Account: account,
+      Balance: account.Balance,
+      RBalance: account.RBalance}
   for _, v := range batchEntries {
     total := v.Total()
     if v.Id == 0 {

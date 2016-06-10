@@ -35,6 +35,7 @@ type SingleEntryView struct {
   CatDisplayer
   Splits []EntrySplitType
   Error error
+  Xsrf string
   ExistingEntry bool
 }
 
@@ -69,9 +70,15 @@ func (s EntrySplitType) ReconcileParam() string {
 func ToSingleEntryView(
     entry *fin.Entry,
     tag uint64,
+    xsrf string,
     cds categories.CatDetailStore) *SingleEntryView {
   result := &SingleEntryView{
-      Values: http_util.Values{make(url.Values)}, CatDisplayer: CatDisplayer{cds}, Splits: entrySplits, Error: nil, ExistingEntry: true}
+      Values: http_util.Values{make(url.Values)},
+      CatDisplayer: CatDisplayer{cds},
+      Splits: entrySplits,
+      Error: nil,
+      Xsrf: xsrf,
+      ExistingEntry: true}
   result.Set("etag", strconv.FormatUint(tag, 10))
   result.Set("name", entry.Name)
   result.Set("desc", entry.Desc)
@@ -106,6 +113,7 @@ func ToSingleEntryView(
 func ToSingleEntryViewFromForm(
     existingEntry bool,
     values url.Values,
+    xsrf string,
     cds categories.CatDetailStore,
     err error) *SingleEntryView {
   return &SingleEntryView{
@@ -113,6 +121,7 @@ func ToSingleEntryViewFromForm(
       CatDisplayer: CatDisplayer{cds},
       Splits: entrySplits,
       Error: err,
+      Xsrf: xsrf,
       ExistingEntry: existingEntry}
 }
 

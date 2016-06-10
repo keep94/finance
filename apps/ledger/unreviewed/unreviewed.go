@@ -17,6 +17,10 @@ import (
   "strconv"
 )
 
+const (
+  kUnreviewed = "unreviewed"
+)
+
 var (
   kTemplateSpec = `
 <html>
@@ -64,6 +68,7 @@ body {
 {{end}}
 {{if .Entries}}
 <form method="post">
+  <input type="hidden" name="xsrf" value="{{.Xsrf}}">
   <input type="hidden" name="edit_id" value="">
   <input type="submit" name="draft" value="Save Draft">
   <input type="submit" name="final" value="Submit checked entries">
@@ -153,25 +158,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   cache := session.Cache
   message := ""
   if r.Method == "POST" {
-    _, isFinal := r.Form["final"]
-    ids := r.Form["id"]
-    updates := make(map[int64]functional.Filterer, len(ids))
-    etags := make(map[int64]uint64, len(ids))
-    for _, idStr := range ids {
-      id, _ := strconv.ParseInt(idStr, 10, 64)
-      updates[id] = createMutation(r.Form, id, isFinal)
-      etag, _ := strconv.ParseUint(r.Form.Get(fmt.Sprintf("etag_%d", id)), 10, 64)
-      etags[id] = etag
+    var err error
+    if !common.VerifyXsrfToken(r, kUnreviewed) {
+      err = common.ErrXsrf
+    } else {
+      _, isFinal := r.Form["final"]
+      ids := r.Form["id"]
+      updates := make(map[int64]functional.Filterer, len(ids))
+      etags := make(map[int64]uint64, len(ids))
+      for _, idStr := range ids {
+        id, _ := strconv.ParseInt(idStr, 10, 64)
+        updates[id] = createMutation(r.Form, id, isFinal)
+        etag, _ := strconv.ParseUint(r.Form.Get(fmt.Sprintf("etag_%d", id)), 10, 64)
+        etags[id] = etag
+      }
+      err = store.DoEntryChanges(nil, &findb.EntryChanges{
+          Updates: updates, Etags: etags})
     }
-    err := store.DoEntryChanges(nil, &findb.EntryChanges{
-        Updates: updates, Etags: etags})
     if err == findb.ConcurrentUpdate {
       message = "You changes were not saved because another user saved while you were editing."
     } else if err == findb.NoPermission {
       message = "Insufficient permission."
     } else if err != nil {
-      http_util.ReportError(w, "Error writing to database.", err)
-      return
+      message = err.Error()
     }
     redirectId, _ := strconv.ParseInt(r.Form.Get("edit_id"), 10, 64)
     if redirectId > 0 {
@@ -198,6 +207,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           common.CatDisplayer{cds},
           common.EntryLinker{r.URL},
           buffer.EntriesWithEtags(),
+          common.NewXsrfToken(r, kUnreviewed),
           message})
 }
 
@@ -206,6 +216,7 @@ type view struct {
   common.CatDisplayer
   common.EntryLinker
   Entries []fin.EntryWithEtag
+  Xsrf string
   ErrorMessage string
 }
 

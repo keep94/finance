@@ -16,6 +16,10 @@ import (
   "strconv"
 )
 
+const (
+  kUnreconciled = "unreconciled"
+)
+
 var (
   kTemplateSpec = `
 <html>
@@ -30,6 +34,7 @@ var (
 Balance: {{FormatUSD .Account.Balance}}&nbsp;&nbsp;&nbsp;&nbsp;Reconciled: {{FormatUSD .Account.RBalance}}
 <br><br>
 <form method="post">
+<input type="hidden" name="xsrf" value="{{.Xsrf}}">
 <input type="hidden" name="edit_id" value="">
 {{if .Values}}
 <input type="submit" value="Reconcile">
@@ -89,20 +94,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   acctId, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
   if r.Method == "POST" {
     editId, _ := strconv.ParseInt(r.Form.Get("edit_id"), 10, 64)
-    reconciler := functional.NewFilterer(func(ptr interface{}) error {
-      p := ptr.(*fin.Entry)
-      if p.Reconcile(acctId) {
-        return nil
+    // Alter DB only if xsrf token is valid
+    if common.VerifyXsrfToken(r, kUnreconciled) {
+      reconciler := functional.NewFilterer(func(ptr interface{}) error {
+        p := ptr.(*fin.Entry)
+        if p.Reconcile(acctId) {
+          return nil
+        }
+        return functional.Skipped
+      })
+      ids := r.Form["id"]
+      updates := make(map[int64]functional.Filterer, len(ids))
+      for _, idStr := range ids {
+        id, _ := strconv.ParseInt(idStr, 10, 64)
+        updates[id] = reconciler
       }
-      return functional.Skipped
-    })
-    ids := r.Form["id"]
-    updates := make(map[int64]functional.Filterer, len(ids))
-    for _, idStr := range ids {
-      id, _ := strconv.ParseInt(idStr, 10, 64)
-      updates[id] = reconciler
+      store.DoEntryChanges(nil, &findb.EntryChanges{Updates: updates})
     }
-    store.DoEntryChanges(nil, &findb.EntryChanges{Updates: updates})
     if editId != 0 {
       entryLinker := common.EntryLinker{r.URL}
       accountLinker := common.AccountLinker{}
@@ -141,6 +149,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           buffer.Buffer,
           common.CatDisplayer{cds},
           common.EntryLinker{r.URL},
+          common.NewXsrfToken(r, kUnreconciled),
           &account})
 }
 
@@ -148,6 +157,7 @@ type view struct {
   *consume.Buffer
   common.CatDisplayer
   common.EntryLinker
+  Xsrf string
   Account *fin.Account
 }
 

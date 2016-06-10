@@ -18,6 +18,10 @@ import (
   "time"
 )
 
+const (
+  kRecurringList = "recurringlist"
+)
+
 var (
   kTemplateSpec = `
 <html>
@@ -28,6 +32,7 @@ var (
 <h2>{{.AccountName}}</h2>
 {{if .EntriesToAddCount}}
   <form method="POST">
+    <input type="hidden" name="xsrf" value="{{.Xsrf}}">
     Today is <b>{{FormatDate .Today}}</b>.<br>
     Apply ALL recurring entries which will create {{.EntriesToAddCount}} new entries?
     <input type="submit" value="YES">
@@ -60,6 +65,7 @@ var (
         <td>{{$top.AcctName .CatPayment}}</td>
         <td rowspan="2" bgcolor="#FFFFFF">
           <form method="POST">
+            <input type="hidden" name="xsrf" value="{{$top.Xsrf}}">
             <input type="hidden" name="rid" value="{{.Id}}">
             <input type="submit" name="skip" value="Skip">
             <input type="submit" name="apply" value="Apply">
@@ -106,7 +112,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   var message string
   if r.Method == "POST" {
     rid, _ := strconv.ParseInt(r.Form.Get("rid"), 10, 64)
-    if rid == 0 {
+    if !common.VerifyXsrfToken(r, kRecurringList) {
+      postErr = common.ErrXsrf
+    } else if rid == 0 {
       message, postErr = h.applyRecurringEntries(store, acctId)
     } else if http_util.HasParam(r.Form, "skip") {
       message, postErr = h.skipEntry(store, rid)
@@ -157,6 +165,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           EntriesToAddCount: count,
           AccountName: accountName,
           Error: postErr,
+          Xsrf: common.NewXsrfToken(r, kRecurringList),
           Message: message})
 }
 
@@ -220,6 +229,7 @@ type view struct {
   EntriesToAddCount int
   Error error
   Message string
+  Xsrf string
   AccountName string
 }
 
