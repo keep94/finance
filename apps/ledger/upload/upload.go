@@ -69,6 +69,7 @@ kConfirmTemplateSpec = `
 <body>
 <h2>{{.Account.Name}} Import Entries</h2>
 <form method="post">
+  <input type="hidden" name="task" value="confirm">
   <table>
     <tr>
       <td>New entries: </td>
@@ -132,26 +133,42 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   }
 }
 
+func serveConfirmPageGet(
+    w http.ResponseWriter,
+    r *http.Request,
+    acctId int64,
+    batch autoimport.Batch,
+    store Store) {
+  account := fin.Account{}
+  unreconciled := make(reconcile.ByAmountCheckNo)
+  err := store.UnreconciledEntries(
+      nil,
+      acctId,
+      &account,
+      consumers.FromEntryAggregator(unreconciled))
+  if err != nil {
+    http_util.ReportError(
+        w, "A database error happened fetching unreconciled entries", err)
+    return
+  }
+  batchEntries := batch.Entries()
+  reconcile.New(batchEntries).Reconcile(unreconciled, kMaxDays)
+  http_util.WriteTemplate(
+      w,
+      kConfirmTemplate,
+      computeConfirmView(&account, batchEntries))
+}
+
 func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctId int64, batch autoimport.Batch, store Store) {
   if r.Method == "GET" {
-    account := fin.Account{}
-    unreconciled := make(reconcile.ByAmountCheckNo)
-    err := store.UnreconciledEntries(
-        nil,
-        acctId,
-        &account, 
-        consumers.FromEntryAggregator(unreconciled))
-    if err != nil {
-      http_util.ReportError(w, "A database error happened fetching unreconciled entries", err)
+    serveConfirmPageGet(w, r, acctId, batch, store)
+  } else {
+    // We are posting. If we are getting a post from the upload form
+    // instead of the confirm form, then treat this as a GET
+    if r.Form.Get("task") != "confirm" {
+      serveConfirmPageGet(w, r, acctId, batch, store)
       return
     }
-    batchEntries := batch.Entries()
-    reconcile.New(batchEntries).Reconcile(unreconciled, kMaxDays)
-    http_util.WriteTemplate(
-        w,
-        kConfirmTemplate,
-        computeConfirmView(&account, batchEntries))
-  } else {
     if !http_util.HasParam(r.Form, "cancel") {
       categorizerBuilder := aggregators.NewByNameCategorizerBuilder(4, 2)
       // If this fails, we can carry on. We just won't get autocategorization
@@ -203,6 +220,14 @@ func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctI
   }
 }
 
+func serverUploadPageGet(
+    w http.ResponseWriter, r *http.Request, account *fin.Account) {
+  view := &view{
+      Account: account,
+      StartDate: account.ImportSD.Format(date_util.YMDFormat)}
+  showView(w, view, nil)
+}
+
 func (h *Handler) serveUploadPage(
     w http.ResponseWriter, r *http.Request, acctId int64,
     store Store, uploaders map[string]autoimport.Loader) {
@@ -213,8 +238,7 @@ func (h *Handler) serveUploadPage(
     return
   }
   if r.Method == "GET" {
-    view := &view{Account: &account, StartDate: account.ImportSD.Format(date_util.YMDFormat)}
-    showView(w, view, nil)
+    serverUploadPageGet(w, r, &account)
   } else {
     sdStr := ""
     qfxFile := bytes.Buffer{}
@@ -222,7 +246,9 @@ func (h *Handler) serveUploadPage(
     var loader autoimport.Loader
     reader, err := r.MultipartReader()
     if err != nil {
-      http_util.ReportError(w, "Error reading multipart form", err)
+      // Assume we are getting a post from the confirm form instead
+      // of the upload form. Treat as a GET.
+      serverUploadPageGet(w, r, &account)
       return
     }
     for part, err := reader.NextPart(); err == nil; part, err = reader.NextPart() {
