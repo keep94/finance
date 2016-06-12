@@ -223,6 +223,7 @@ func (h *Handler) serveUploadPage(
     reader, err := r.MultipartReader()
     if err != nil {
       http_util.ReportError(w, "Error reading multipart form", err)
+      return
     }
     for part, err := reader.NextPart(); err == nil; part, err = reader.NextPart() {
       if part.FormName() == "sd" {
