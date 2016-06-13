@@ -147,9 +147,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           "Category %s removed.", oldName)
     }
     values := http_util.Values{}
-    if err == nil {
-      cat = fin.Cat{}
-    } else {
+    if err != nil {
       values = http_util.Values{r.Form}
       message = ""
     }
