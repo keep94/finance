@@ -21,7 +21,7 @@ import (
 )
 
 const (
-  kSessionCookieName = "session-cookie"
+  kSessionCookieName = "finance-session-cookie"
 )
 
 const (
