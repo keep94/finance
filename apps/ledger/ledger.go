@@ -89,42 +89,59 @@ func main() {
   }
   http.Handle(
       "/auth/login",
-      &login.Handler{SessionStore: kSessionStore, Store: kStore})
+      &login.Handler{SessionStore: kSessionStore, Store: kReadOnlyStore})
   http.Handle(
       "/fin/", &authHandler{mux})
   mux.Handle(
       "/fin/list",
-      &list.Handler{Store: kStore, Cdc: kCatDetailCache, PageSize: kPageSize})
+      &list.Handler{
+         Store: kReadOnlyStore,
+         Cdc: kReadOnlyCatDetailCache,
+         PageSize: kPageSize})
   mux.Handle(
       "/fin/recurringlist",
       &recurringlist.Handler{
-          Doer: kDoer, Cdc: kCatDetailCache, Clock: kClock})
+          Doer: kDoer, Cdc: kReadOnlyCatDetailCache, Clock: kClock})
   mux.Handle(
       "/fin/account",
-      &account.Handler{Store: kStore, Cdc: kCatDetailCache, Doer: kDoer, PageSize: kPageSize})
+      &account.Handler{
+          Store: kReadOnlyStore,
+          Cdc: kReadOnlyCatDetailCache,
+          Doer: kDoer,
+          PageSize: kPageSize})
   mux.Handle("/fin/single", &single.Handler{Doer: kDoer, Clock: kClock})
   mux.Handle(
       "/fin/recurringsingle",
       &recurringsingle.Handler{Doer: kDoer, Clock: kClock})
   mux.Handle("/fin/catedit", &catedit.Handler{})
   mux.Handle("/fin/logout", &logout.Handler{})
+  // For now, the chpasswd handler gets full access to store
   mux.Handle("/fin/chpasswd", &chpasswd.Handler{Store: kStore, Doer: kDoer})
-  mux.Handle("/fin/leftnav", &leftnav.Handler{Cdc: kCatDetailCache, Clock: kClock})
+  mux.Handle(
+      "/fin/leftnav",
+      &leftnav.Handler{Cdc: kReadOnlyCatDetailCache, Clock: kClock})
   mux.Handle("/fin/frame", &frame.Handler{Title: fTitle})
-  mux.Handle("/fin/report", &report.Handler{Cdc: kCatDetailCache, Store: kStore})
-  mux.Handle("/fin/trends", &trends.Handler{Store: kStore, Cdc:kCatDetailCache})
-  mux.Handle("/fin/unreconciled", &unreconciled.Handler{Doer: kDoer, PageSize: kPageSize})
-  mux.Handle("/fin/unreviewed", &unreviewed.Handler{Doer: kDoer, PageSize: kPageSize})
+  mux.Handle(
+      "/fin/report",
+      &report.Handler{Cdc: kReadOnlyCatDetailCache, Store: kReadOnlyStore})
+  mux.Handle(
+      "/fin/trends",
+      &trends.Handler{Store: kReadOnlyStore, Cdc:kReadOnlyCatDetailCache})
+  mux.Handle(
+      "/fin/unreconciled",
+      &unreconciled.Handler{Doer: kDoer, PageSize: kPageSize})
+  mux.Handle(
+      "/fin/unreviewed", &unreviewed.Handler{Doer: kDoer, PageSize: kPageSize})
   mux.Handle("/fin/upload", &upload.Handler{Doer: kDoer})
   mux.Handle(
       "/fin/acname",
       &ac.Handler{
-          Store: kStore,
+          Store: kReadOnlyStore,
           Field: func (e *fin.Entry) string { return e.Name }})
   mux.Handle(
       "/fin/acdesc",
       &ac.Handler{
-          Store: kStore,
+          Store: kReadOnlyStore,
           Field: func (e *fin.Entry) string { return e.Desc }})
   
   defaultHandler := context.ClearHandler(
@@ -147,7 +164,7 @@ type authHandler struct {
 }
 
 func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-  session, err := common.NewUserSession(kStore, kSessionStore, r)
+  session, err := common.NewUserSession(kReadOnlyStore, kSessionStore, r)
   if err != nil {
     http_util.ReportError(w, "Error reading database.", err)
     return
