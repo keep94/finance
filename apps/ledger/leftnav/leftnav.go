@@ -26,6 +26,7 @@ Accounts:
 <br>
 <a href="{{.ReportUrl}}" target="main">Reports</a><br>
 <a href="{{.TrendUrl}}" target="main">Trends</a><br>
+<a href="/fin/totals" target="main">Totals</a><br>
 <br>
 <a href="/fin/list" target="main">Search</a><br>
 <a href="/fin/unreviewed" target="main">Review</a><br>

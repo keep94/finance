@@ -24,6 +24,7 @@ import (
   "github.com/keep94/finance/apps/ledger/report"
   "github.com/keep94/finance/apps/ledger/single"
   "github.com/keep94/finance/apps/ledger/static"
+  "github.com/keep94/finance/apps/ledger/totals"
   "github.com/keep94/finance/apps/ledger/trends"
   "github.com/keep94/finance/apps/ledger/unreconciled"
   "github.com/keep94/finance/apps/ledger/unreviewed"
@@ -127,6 +128,9 @@ func main() {
   mux.Handle(
       "/fin/trends",
       &trends.Handler{Store: kReadOnlyStore, Cdc:kReadOnlyCatDetailCache})
+  mux.Handle(
+      "/fin/totals",
+      &totals.Handler{Store: kReadOnlyStore})
   mux.Handle(
       "/fin/unreconciled",
       &unreconciled.Handler{Doer: kDoer, PageSize: kPageSize})
