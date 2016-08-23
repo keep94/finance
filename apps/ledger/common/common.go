@@ -4,6 +4,7 @@ package common
 
 import (
   "errors"
+  "flag"
   "fmt"
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/appcommon/session_util"
@@ -21,12 +22,12 @@ import (
 )
 
 const (
-  kSessionCookieName = "finance-session-cookie"
-)
-
-const (
   // Set to the same thing as kSessionTimeout in ledger.go
   kXsrfTimeout = 15 * time.Minute
+)
+
+var (
+  fSessionCookieName string
 )
 
 var (
@@ -57,7 +58,7 @@ var (
 // NewGorillaSession creates a gorilla session for the finance app
 func NewGorillaSession(
     sessionStore sessions.Store, r *http.Request) (*sessions.Session, error) {
-  return sessionStore.Get(r, kSessionCookieName)
+  return sessionStore.Get(r, fSessionCookieName)
 }
 
 // NewXsrfToken creates a new xsrf token for given action.
@@ -115,7 +116,7 @@ func NewUserSession(
   us, err := session_util.NewUserSession(
       sessionStore,
       r,
-      kSessionCookieName,
+      fSessionCookieName,
       func(s *sessions.Session) session_util.UserSession {
         return CreateUserSession(s)
       },
@@ -355,3 +356,10 @@ func (g userGetter) GetUser(id int64) (interface{}, error) {
   return &user, nil
 }
 
+func init() {
+  flag.StringVar(
+      &fSessionCookieName,
+      "session_cookie_name",
+      "finance-session-cookie",
+      "session cookie name")
+}
