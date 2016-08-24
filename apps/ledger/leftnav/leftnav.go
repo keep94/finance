@@ -32,6 +32,7 @@ Accounts:
 <a href="/fin/unreviewed" target="main">Review</a><br>
 <a href="/fin/catedit" target="main">Manage Categories</a><br>
 <a href="/fin/recurringlist" target="main">Recurring</a><br>
+<a href="/fin/export" target="main">Export</a><br>
 <br>
 <a href="/fin/chpasswd" target="main">Change Password</a><br>
 <a href="/fin/logout" target="_top">Sign out</a>

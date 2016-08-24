@@ -14,6 +14,7 @@ import (
   "github.com/keep94/finance/apps/ledger/catedit"
   "github.com/keep94/finance/apps/ledger/chpasswd"
   "github.com/keep94/finance/apps/ledger/common"
+  "github.com/keep94/finance/apps/ledger/export"
   "github.com/keep94/finance/apps/ledger/frame"
   "github.com/keep94/finance/apps/ledger/leftnav"
   "github.com/keep94/finance/apps/ledger/list"
@@ -131,6 +132,12 @@ func main() {
   mux.Handle(
       "/fin/totals",
       &totals.Handler{Store: kReadOnlyStore})
+  mux.Handle(
+      "/fin/export",
+      &export.Handler{
+          Store: kReadOnlyStore,
+          Cdc: kReadOnlyCatDetailCache,
+          Clock: kClock})
   mux.Handle(
       "/fin/unreconciled",
       &unreconciled.Handler{Doer: kDoer, PageSize: kPageSize})
