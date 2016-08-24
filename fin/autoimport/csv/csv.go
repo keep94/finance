@@ -58,6 +58,24 @@ func (c CsvLoader) Load(
   return &qfx.QfxBatch{Store: c.Store, AccountId: accountId, QfxEntries: result}, nil
 }
 
+func fromNativeHeader(line []string, accountId int64, entry *fin.Entry) (ok bool, err error) {
+  entry.Date, err = time.Parse("1/2/2006", line[0])
+  if err != nil {
+    return
+  }
+  entry.CheckNo = line[1]
+  entry.Name = line[2]
+  entry.Desc = line[3]
+  var amt int64
+  amt, err = fin.ParseUSD(line[4])
+  if err != nil {
+    return
+  }
+  entry.CatPayment = fin.NewCatPayment(fin.Expense, -amt, true, accountId)
+  ok = true
+  return
+}
+
 func fromPaypalHeader(line []string, accountId int64, entry *fin.Entry) (ok bool, err error) {
   entry.Date, err = time.Parse("1/2/2006", line[0])
   if err != nil {
@@ -80,6 +98,9 @@ func fromPaypalHeader(line []string, accountId int64, entry *fin.Entry) (ok bool
 func fromHeader(line []string) func([]string, int64, *fin.Entry) (bool, error) {
   if len(line) == 10 && line[0] == "Date" && line[3] == " Name" && line[6] == " Amount" {
     return fromPaypalHeader
+  }
+  if len(line) == 5 && line[0] == "Date" && line[1] == "CheckNo" && line[2] == "Name" && line[3] == "Desc" && line[4] == "Amount" {
+    return fromNativeHeader
   }
   return nil
 }
