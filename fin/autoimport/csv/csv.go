@@ -50,6 +50,10 @@ func (c CsvLoader) Load(
     if err != nil {
       return nil, err
     }
+    err = qentry.Check()
+    if err != nil {
+      return nil, err
+    }
     result = append(result, &qentry)
   }
   if err != io.EOF {

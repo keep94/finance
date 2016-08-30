@@ -11,6 +11,74 @@ import (
   "testing"
 )
 
+const kMissingNameQfx = `
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+<OFX>
+<SIGNONMSGSRSV1>
+<SONRS>
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+</STATUS>
+<DTSERVER>20121115120000[0:GMT]
+<LANGUAGE>ENG
+<FI>
+<ORG>ISC
+<FID>10898
+</FI>
+<INTU.BID>10898
+</SONRS>
+</SIGNONMSGSRSV1>
+<CREDITCARDMSGSRSV1>
+<CCSTMTTRNRS>
+<TRNUID>1
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+<MESSAGE>Success
+</STATUS>
+<CCSTMTRS>
+<CURDEF>USD
+<CCACCTFROM>
+<ACCTID>4147202080404005
+</CCACCTFROM>
+<BANKTRANLIST>
+<DTSTART>20121115120000[0:GMT]
+<DTEND>20121115120000[0:GMT]
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20121113120000[0:GMT]
+<TRNAMT>-109.01
+<FITID>10200
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20121114120000[0:GMT]
+<TRNAMT>-100.75
+<FITID>10201
+<NAME>WHOLEFDS LAT 10155
+</STMTTRN>
+</BANKTRANLIST>
+<LEDGERBAL>
+<BALAMT>-3392.62
+<DTASOF>20121115120000[0:GMT]
+</LEDGERBAL>
+<AVAILBAL>
+<BALAMT>21714.00
+<DTASOF>20121115120000[0:GMT]
+</AVAILBAL>
+</CCSTMTRS>
+</CCSTMTTRNRS>
+`
+
 const kSampleQfx = `
 OFXHEADER:100
 DATA:OFXSGML
@@ -122,6 +190,22 @@ func TestReadQFXBadFile(t *testing.T) {
     t.Errorf("Expected to read no entries, but read %d entries.", len(entries))
   }
 }
+
+func TestReadQFXWithEntryMissingName(t *testing.T) {
+  var loader autoimport.Loader
+  loader = QFXLoader{make(storeType)}
+  r := strings.NewReader(kMissingNameQfx)
+  _, err := loader.Load(3, "", r, date_util.YMD(2012, 11, 14))
+  if err != nil {
+    t.Error("Expected no error")
+  }
+  r = strings.NewReader(kMissingNameQfx)
+  _, err = loader.Load(3, "", r, date_util.YMD(2012, 11, 13))
+  if err == nil {
+    t.Error("Expected error reading entry with missing name")
+  }
+}
+
 
 func TestReadQFX(t *testing.T) {
   r := strings.NewReader(kSampleQfx)

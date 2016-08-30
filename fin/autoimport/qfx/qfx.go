@@ -131,6 +131,10 @@ func (q QFXLoader) Load(
       // No meaningful contents with this closing tag. This closing tag
       // means that we are done with an entry.
       if !qe.Date.Before(startDate) {
+        err = qe.Check()
+        if err != nil {
+          return nil, err
+        }
         result = append(result, qe)
       }
       qe = &QfxEntry{}
@@ -202,6 +206,17 @@ func (q *QfxBatch) toFitIdSet() qfxdb.FitIdSet {
 type QfxEntry struct {
   fin.Entry
   FitId string
+}
+
+// Check ensures this instance contains required fields.
+func (q *QfxEntry) Check() error {
+  if strings.TrimSpace(q.Name) == "" {
+    return errors.New("Imported entry missing name field.")
+  }
+  if q.FitId == "" {
+    return errors.New("Imported entry missing fit id.")
+  }
+  return nil
 }
 
 func parseQFXDate(s string) (time.Time, error) {

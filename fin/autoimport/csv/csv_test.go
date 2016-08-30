@@ -24,6 +24,14 @@ Date, Time, Time Zone, Name, Type, Status, Amount, Receipt ID, Balance,
 "9/2/2015","09:27:09","PST","Bank Account","Add Funds from a Bank Account","Completed","18.43","","18.43",
 `
 
+const kMissingNameCsv = `
+Date, Time, Time Zone, Name, Type, Status, Amount, Receipt ID, Balance,
+"12/6/2015","07:59:04","PST","TrackR, Inc","Express Checkout Payment Sent","Completed","-87.00","","0.00",
+"9/5/2015","09:15:47","PST","Starbucks Coffee Company","Express Checkout Payment Sent","Completed","-48.10","","0.00",
+"9/2/2015","09:27:09","PST","","Express Checkout Payment Sent","Completed","-18.43","","0.00",
+"9/2/2015","09:27:09","PST","Bank Account","Add Funds from a Bank Account","Completed","18.43","","18.43",
+`
+
 func TestReadBadCsvFile(t *testing.T) {
   r := strings.NewReader("A bad file\nNo CSV things in here\n")
   var loader autoimport.Loader
@@ -31,6 +39,21 @@ func TestReadBadCsvFile(t *testing.T) {
   _, err := loader.Load(3, "", r, date_util.YMD(2012, 11, 14))
   if err == nil {
     t.Error("Expected error")
+  }
+}
+
+func TestReadCsvWithEntryMissingName(t *testing.T) {
+  var loader autoimport.Loader
+  loader = csv.CsvLoader{make(storeType)}
+  r := strings.NewReader(kMissingNameCsv)
+  _, err := loader.Load(3, "", r, date_util.YMD(2015, 9, 3))
+  if err != nil {
+    t.Error("Expected no error")
+  }
+  r = strings.NewReader(kMissingNameCsv)
+  _, err = loader.Load(3, "", r, date_util.YMD(2015, 9, 2))
+  if err == nil {
+    t.Error("Expected error reading entry with missing name")
   }
 }
 
