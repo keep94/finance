@@ -20,6 +20,7 @@ const (
   kDtPosted = "<DTPOSTED>"
   kTrnAmt = "<TRNAMT>"
   kName = "<NAME>"
+  kMemo = "<MEMO>"
   kCheckNum = "<CHECKNUM>"
   kStmtTrnClose = "</STMTTRN>"
   kFitId = "<FITID>"
@@ -106,6 +107,7 @@ func (q QFXLoader) Load(
   qe := &QfxEntry{}
   var result []*QfxEntry
   var tagAndContents [2]string
+  var readName, readMemo string
   for err = tagStream.Next(tagAndContents[:]); err == nil; err = tagStream.Next(tagAndContents[:]) {
     tag := tagAndContents[0]
     contents := tagAndContents[1]
@@ -115,7 +117,9 @@ func (q QFXLoader) Load(
         return nil, err
       }
     } else if tag == kName {
-      qe.Name = strings.Replace(contents, "&amp;", "&", -1)
+      readName = strings.Replace(contents, "&amp;", "&", -1)
+    } else if tag == kMemo {
+      readMemo = strings.Replace(contents, "&amp;", "&", -1)
     } else if tag == kCheckNum {
       qe.CheckNo = contents
     } else if tag == kTrnAmt {
@@ -131,6 +135,12 @@ func (q QFXLoader) Load(
       // No meaningful contents with this closing tag. This closing tag
       // means that we are done with an entry.
       if !qe.Date.Before(startDate) {
+        // Prefer name field to memo field
+        if strings.TrimSpace(readName) != "" {
+          qe.Name = readName
+        } else {
+          qe.Name = readMemo
+        }
         err = qe.Check()
         if err != nil {
           return nil, err
@@ -138,6 +148,8 @@ func (q QFXLoader) Load(
         result = append(result, qe)
       }
       qe = &QfxEntry{}
+      readName = ""
+      readMemo = ""
     }
   }
   return &QfxBatch{Store: q.Store, AccountId: accountId, QfxEntries: result}, nil

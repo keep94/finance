@@ -11,6 +11,82 @@ import (
   "testing"
 )
 
+const kMemoQfx = `
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+<OFX>
+<SIGNONMSGSRSV1>
+<SONRS>
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+</STATUS>
+<DTSERVER>20121115120000[0:GMT]
+<LANGUAGE>ENG
+<FI>
+<ORG>ISC
+<FID>10898
+</FI>
+<INTU.BID>10898
+</SONRS>
+</SIGNONMSGSRSV1>
+<CREDITCARDMSGSRSV1>
+<CCSTMTTRNRS>
+<TRNUID>1
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+<MESSAGE>Success
+</STATUS>
+<CCSTMTRS>
+<CURDEF>USD
+<CCACCTFROM>
+<ACCTID>4147202080404005
+</CCACCTFROM>
+<BANKTRANLIST>
+<DTSTART>20121115120000[0:GMT]
+<DTEND>20121115120000[0:GMT]
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20160830120000[0:GMT]
+<NAME>Choose Name &amp; Field
+<TRNAMT>-5.14
+<FITID>9999 <MEMO>Over Memo Field
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20160828120000[0:GMT]
+<TRNAMT>-5.12
+<FITID>9997
+<NAME>Just Name &amp; Field
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20160829120000[0:GMT]
+<TRNAMT>-5.13
+<FITID>9998
+<MEMO>Just Memo &amp; Field
+</STMTTRN>
+</BANKTRANLIST>
+<LEDGERBAL>
+<BALAMT>-3392.62
+<DTASOF>20121115120000[0:GMT]
+</LEDGERBAL>
+<AVAILBAL>
+<BALAMT>21714.00
+<DTASOF>20121115120000[0:GMT]
+</AVAILBAL>
+</CCSTMTRS>
+</CCSTMTTRNRS>
+`
+
 const kMissingNameQfx = `
 OFXHEADER:100
 DATA:OFXSGML
@@ -206,6 +282,34 @@ func TestReadQFXWithEntryMissingName(t *testing.T) {
   }
 }
 
+func TestReadQFXMemoField(t *testing.T) {
+  r := strings.NewReader(kMemoQfx)
+  var loader autoimport.Loader
+  loader = QFXLoader{make(storeType)}
+  batch, err := loader.Load(3, "", r, date_util.YMD(2016, 8, 28))
+  if err != nil {
+    t.Errorf("Got error %v", err)
+    return
+  }
+  entries := batch.Entries()
+  cp := fin.CatPaymentBuilder{}
+  expectedEntries := []*fin.Entry {
+      {
+          Date: date_util.YMD(2016, 8, 30),
+          Name: "Choose Name & Field",
+          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 514}).Build()},
+      {
+          Date: date_util.YMD(2016, 8, 28),
+          Name: "Just Name & Field",
+          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 512}).Build()},
+      {
+          Date: date_util.YMD(2016, 8, 29),
+          Name: "Just Memo & Field",
+          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 513}).Build()}}
+  if !reflect.DeepEqual(expectedEntries, entries) {
+    t.Errorf("Expected %v, got %v", expectedEntries, entries)
+  }
+}
 
 func TestReadQFX(t *testing.T) {
   r := strings.NewReader(kSampleQfx)
