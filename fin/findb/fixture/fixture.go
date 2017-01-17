@@ -1176,7 +1176,12 @@ type UpdateUserStore interface {
   UserByIdStore
   findb.UpdateUserRunner
 }
-    
+
+type LoginStore interface {
+  UserByNameStore
+  findb.UpdateUserRunner
+}
+
 func UserById(t *testing.T, store UserByIdStore) {
   createUsers(t, store)
   verifyUser(t, store, newUser(1))
@@ -1235,6 +1240,46 @@ func RemoveUserByName(t *testing.T, store RemoveUserByNameStore) {
   }
 }
 
+func LoginUser(t *testing.T, doer db.Doer, store LoginStore) {
+  createUsersWithFunc(t, store, newUserWithPassword)
+  aTime := time.Date(2016, 12, 13, 14, 15, 16, 0, time.UTC)
+  var user fin.User
+  err := doer.Do(func (t db.Transaction) error {
+    return findb.LoginUser(t, store, "name1", "password1", aTime, &user)
+  })
+  if err != nil {
+    t.Fatalf("Got error logging in user")
+  }
+  if !user.LastLogin.IsZero() {
+    t.Error("Expected no last login")
+  }
+
+  err = store.UserByName(nil, "name1", &user)
+  if err != nil {
+    t.Fatalf("Got error reading database: %v", err)
+  }
+  if user.LastLogin != aTime {
+    t.Errorf("Expected last login %v, got %v", aTime, user.LastLogin)
+  }
+
+  bTime := time.Date(2017, 1, 2, 3, 4, 5, 0, time.UTC)
+  err = doer.Do(func (t db.Transaction) error {
+    return findb.LoginUser(t, store, "name1", "wrong_password", bTime, &user)
+  })
+  if err != findb.NoSuchId {
+    t.Errorf("Expected NoSuchId, got %v", err)
+  }
+
+  // Login failure should not update last login
+  err = store.UserByName(nil, "name1", &user)
+  if err != nil {
+    t.Fatalf("Got error reading database: %v", err)
+  }
+  if user.LastLogin != aTime {
+    t.Errorf("Expected last login %v, got %v", aTime, user.LastLogin)
+  }
+}
+
 func NoUserByName(t *testing.T, store UserByNameStore) {
   createUsers(t, store)
   user := fin.User{}
@@ -1255,9 +1300,12 @@ func UpdateUser(t *testing.T, store UpdateUserStore) {
   verifyUser(t, store, &user)
 }
 
-func createUsers(t *testing.T, store findb.AddUserRunner) {
+func createUsersWithFunc(
+    t *testing.T,
+    store findb.AddUserRunner,
+    newFunc func(int64) *fin.User ) {
   for i := 1; i < 3; i++ {
-    user := newUser(int64(i))
+    user := newFunc(int64(i))
     user.Id = 0
     err := store.AddUser(nil, user)
     if err != nil {
@@ -1267,6 +1315,10 @@ func createUsers(t *testing.T, store findb.AddUserRunner) {
       t.Error("Expected user.Id to be set.")
     }
   }
+}
+
+func createUsers(t *testing.T, store findb.AddUserRunner) {
+  createUsersWithFunc(t, store, newUser)
 }
 
 func verifyUser(t *testing.T, store findb.UserByIdRunner, expected *fin.User) {
@@ -1287,13 +1339,23 @@ func verifyNoUser(t *testing.T, store findb.UserByIdRunner, id int64) {
     t.Errorf("Expected NoSuchId, got: %v", err)
   }
 }
+
+
     
-func newUser(id int64) *fin.User {
+func newUserRawPassword(id int64, pwd passwords.Password) *fin.User {
   return &fin.User{
       Id: id,
       Name: fmt.Sprintf("name%d", id),
-      Password: passwords.Password(fmt.Sprintf("password%d", id)),
+      Password: pwd,
       Permission: fin.Permission(id) % (fin.NonePermission + 1)}
+}
+
+func newUser(id int64) *fin.User {
+  return newUserRawPassword(id, passwords.Password(fmt.Sprintf("password%d", id)))
+}
+
+func newUserWithPassword(id int64) *fin.User {
+  return newUserRawPassword(id, passwords.New(fmt.Sprintf("password%d", id)))
 }
 
 func ymdPtr(year, month, day int) *time.Time {

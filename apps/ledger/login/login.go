@@ -2,12 +2,14 @@ package login
 
 import (
   "github.com/gorilla/sessions"
+  "github.com/keep94/appcommon/db"
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/findb"
   "html/template"
   "net/http"
+  "time"
 )
 
 var (
@@ -44,8 +46,9 @@ var (
 )
 
 type Handler struct {
+  Doer db.Doer
   SessionStore sessions.Store
-  Store findb.UserByNameRunner
+  Store findb.UpdateUserByNameRunner
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -55,14 +58,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     r.ParseForm()
     userName := r.Form.Get("name")
     password := r.Form.Get("password")
-    user := fin.User{}
-    err := h.Store.UserByName(nil, userName, &user)
-    if err != nil && err != findb.NoSuchId {
-      http_util.ReportError(w, "Database error", err)
+    var user fin.User
+    err := h.Doer.Do(func(t db.Transaction) error {
+      return findb.LoginUser(t, h.Store, userName, password, time.Now(), &user)
+    })
+    if err == findb.NoSuchId {
+      http_util.WriteTemplate(w, kTemplate, "Login incorrect.")
       return
     }
-    if err == findb.NoSuchId || !user.Verify(password) || user.Permission == fin.NonePermission {
-      http_util.WriteTemplate(w, kTemplate, "Login incorrect.")
+    if err != nil {
+      http_util.ReportError(w, "Database error", err)
       return
     }
     gs, err := common.NewGorillaSession(h.SessionStore, r)
@@ -72,6 +77,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     }
     session := common.CreateUserSession(gs)
     session.SetUserId(user.Id)
+    session.SetLastLogin(user.LastLogin)
     session.ID = ""  // For added security, force a new session ID
     session.Save(r, w)
     http_util.Redirect(w, r, r.Form.Get("prev"))
