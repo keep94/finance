@@ -31,7 +31,7 @@ func SetUpTables(conn *sqlite.Conn) error {
   if err != nil {
     return err
   }
-  err = conn.Exec("create table if not exists users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, go_password TEXT, permission INTEGER)")
+  err = conn.Exec("create table if not exists users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, go_password TEXT, permission INTEGER, last_login INTEGER)")
   if err != nil {
     return err
   }

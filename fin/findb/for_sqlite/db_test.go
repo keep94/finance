@@ -181,6 +181,12 @@ func TestUsers(t *testing.T) {
   fixture.Users(t, New(db))
 }
 
+func TestLoginUser(t *testing.T) {
+  db := openDb(t)
+  defer closeDb(t, db)
+  fixture.LoginUser(t, sqlite_db.NewDoer(db), New(db))
+}
+
 func TestRemoveUserByName(t *testing.T) {
   db := openDb(t)
   defer closeDb(t, db)

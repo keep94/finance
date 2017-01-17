@@ -15,6 +15,9 @@ var (
   kTemplateSpec = `
 <html>
 <body>
+<b>{{.UserName}}</b><br>
+{{.LastLogin}}<br>
+<br>
 Accounts:
 <ul>
 {{with $top := .}}
@@ -50,6 +53,12 @@ type Handler struct {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  session := common.GetUserSession(r)
+  lastLoginStr := "--"
+  lastLogin := session.LastLogin()
+  if !lastLogin.IsZero() {
+    lastLoginStr = lastLogin.Local().Format("01/02/2006 15:04")
+  }
   cds, err := h.Cdc.Get(nil)
   if err != nil {
     http_util.ReportError(w, "Database error", err)
@@ -69,8 +78,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       TrendUrl: http_util.NewUrl(
           "/fin/trends",
           "sd", oneYearAgo.Format(date_util.YMDFormat),
-          "ed", now.Format(date_util.YMDFormat))})
-      
+          "ed", now.Format(date_util.YMDFormat)),
+      UserName: session.User.Name,
+      LastLogin: lastLoginStr})
 }
 
 type view struct {
@@ -78,6 +88,8 @@ type view struct {
   categories.CatDetailStore
   ReportUrl *url.URL
   TrendUrl *url.URL
+  UserName string
+  LastLogin string
 }
 
 func init() {

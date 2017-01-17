@@ -644,6 +644,7 @@ type User struct {
   Name string
   passwords.Password
   Permission Permission
+  LastLogin time.Time
 }
 
 // FormatUSD returns amount as dollars and cents.

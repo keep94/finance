@@ -435,6 +435,38 @@ func ApplyRecurringEntries(
   return len(entries), nil
 }
 
+type UpdateUserByNameRunner interface {
+  UserByNameRunner
+  UpdateUserRunner
+}
+
+// LoginUser logs in a user. Caller responsible for setting any cookies
+// resulting from login. On success, LoginUser sets logged in user at
+// user. If password or userName is wrong, LoginUser returns NoSuchId.
+func LoginUser(
+    t db.Transaction,
+    store UpdateUserByNameRunner,
+    userName string,
+    password string,
+    currentTime time.Time,
+    user *fin.User) error {
+  if t == nil {
+    panic("non nil transaction required.")
+  }
+  if err := store.UserByName(t, userName, user); err != nil {
+    return err
+  }
+  if !user.Verify(password) || user.Permission == fin.NonePermission {
+    return NoSuchId
+  }
+  newUser := *user
+  newUser.LastLogin = currentTime
+  if err := store.UpdateUser(t, &newUser); err != nil {
+    return err
+  }
+  return nil
+}
+
 func applyRecurringEntriesDryRun(
     t db.Transaction,
     store RecurringEntriesRunner,

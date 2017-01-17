@@ -151,7 +151,15 @@ func listUsers(store findb.UsersRunner) {
     fmt.Printf("An error happened listing users - %v\n", err)
   }
   for _, u := range users {
-    fmt.Printf("%s %s\n", u.Name, u.Permission)
+    lastLoginStr := "--"
+    if !u.LastLogin.IsZero() {
+      lastLoginStr = u.LastLogin.Local().Format("01/02/2006 15:04")
+    }
+    fmt.Printf(
+        "%-12s %-16s %s\n",
+        u.Name,
+        lastLoginStr,
+        u.Permission)
   }
 }
 

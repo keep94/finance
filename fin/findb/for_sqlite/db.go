@@ -37,12 +37,12 @@ const (
     kSQLUpdateAccountImportSD = "update accounts set import_sd = ? where id = ?"
     kSQLUpdateAccount = "update accounts set name = ?, is_active = ?, balance = ?, reconciled = ?, b_count = ?, r_count = ?, import_sd = ? where id = ?"
     kSQLRemoveAccount = "delete from accounts where id = ?"
-    kSQLUserById = "select id, name, go_password, permission from users where id = ?"
-    kSQLUsers = "select id, name, go_password, permission from users order by name"
+    kSQLUserById = "select id, name, go_password, permission, last_login from users where id = ?"
+    kSQLUsers = "select id, name, go_password, permission, last_login from users order by name"
     kSQLRemoveUserByName = "delete from users where name = ?"
-    kSQLUserByName = "select id, name, go_password, permission from users where name = ?"
-    kSQLInsertUser = "insert into users (name, go_password, permission) values (?, ?, ?)"
-    kSQLUpdateUser = "update users set name = ?, go_password = ?, permission = ? where id = ?"
+    kSQLUserByName = "select id, name, go_password, permission, last_login from users where name = ?"
+    kSQLInsertUser = "insert into users (name, go_password, permission, last_login) values (?, ?, ?, ?)"
+    kSQLUpdateUser = "update users set name = ?, go_password = ?, permission = ?, last_login = ? where id = ?"
 )
 
 func New(db *sqlite_db.Db) Store {
@@ -454,14 +454,15 @@ type rawUser struct {
   *fin.User
   rawPassword string
   rawPermission int
+  rawLastLogin int64
 } 
 
 func (r *rawUser) Ptrs() []interface{} {
-  return []interface{} {&r.Id, &r.Name, &r.rawPassword, &r.rawPermission}
+  return []interface{} {&r.Id, &r.Name, &r.rawPassword, &r.rawPermission, &r.rawLastLogin}
 }
 
 func (r *rawUser) Values() []interface{} {
-  return []interface{} {r.Name, r.rawPassword, r.rawPermission, r.Id}
+  return []interface{} {r.Name, r.rawPassword, r.rawPermission, r.rawLastLogin, r.Id}
 }
 
 func (r *rawUser) Pair(ptr interface{}) {
@@ -472,12 +473,22 @@ func (r *rawUser) Unmarshall() error {
   r.Password = passwords.Password(r.rawPassword)
   // Defaults to fin.NonePermission if the raw permission is not recognized
   r.Permission, _ = fin.ToPermission(r.rawPermission)
+  if r.rawLastLogin == 0 {
+    r.LastLogin = time.Time{}
+  } else {
+    r.LastLogin = time.Unix(r.rawLastLogin, 0).UTC()
+  }
   return nil
 }
 
 func (r *rawUser) Marshall() error {
   r.rawPassword = string(r.Password)
   r.rawPermission = r.Permission.ToInt()
+  if r.LastLogin.IsZero() {
+    r.rawLastLogin = 0
+  } else {
+    r.rawLastLogin = r.LastLogin.Unix()
+  }
   return nil
 }
 

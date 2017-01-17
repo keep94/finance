@@ -91,7 +91,8 @@ func main() {
   }
   http.Handle(
       "/auth/login",
-      &login.Handler{SessionStore: kSessionStore, Store: kReadOnlyStore})
+      &login.Handler{
+          Doer: kDoer, SessionStore: kSessionStore, Store: kStore})
   http.Handle(
       "/fin/", &authHandler{mux})
   mux.Handle(
