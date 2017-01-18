@@ -55,8 +55,8 @@ type Handler struct {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   session := common.GetUserSession(r)
   lastLoginStr := "--"
-  lastLogin := session.LastLogin()
-  if !lastLogin.IsZero() {
+  lastLogin, ok := session.LastLogin()
+  if ok {
     lastLoginStr = lastLogin.Local().Format("01/02/2006 15:04")
   }
   cds, err := h.Cdc.Get(nil)
