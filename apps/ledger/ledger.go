@@ -182,10 +182,15 @@ func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     return
   }
   if session.User == nil || !setupStores(session) {
+    redirectString := r.URL.String()
+    // Never have login page redirect to logout page.
+    if redirectString == "/fin/logout" {
+      redirectString = "/fin/frame"
+    }
     http_util.Redirect(
         w,
         r,
-        http_util.NewUrl("/auth/login", "prev", r.URL.String()).String())
+        http_util.NewUrl("/auth/login", "prev", redirectString).String())
     return
   }
   logging.SetUserName(r, session.User.Name)

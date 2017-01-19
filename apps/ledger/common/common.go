@@ -158,26 +158,6 @@ func (s *UserSession) SetBatch(acctId int64, batch autoimport.Batch) {
   }
 }
 
-// LastLogin returns the last login time of this user or the zero time if no
-// last login time exists for this user.
-func (s *UserSession) LastLogin() time.Time {
-  result := s.Values[kLastLoginKey]
-  if result == nil {
-    return time.Time{}
-  }
-  return result.(time.Time)
-}
-
-// SetLastLogin sets the last login time of this user. Passing the zero
-// time clears the last login time of this user.
-func (s *UserSession) SetLastLogin(lastLogin time.Time) {
-  if lastLogin.IsZero() {
-    delete(s.Values, kLastLoginKey)
-  } else {
-    s.Values[kLastLoginKey] = lastLogin
-  }
-}
-
 // AccountLinker creates URLs to account pages
 type AccountLinker struct {
 }
@@ -337,12 +317,6 @@ func formatDate(t time.Time) string {
 }
 
 type sessionBatchKeyType int64
-
-type sessionKeyType int
-
-const (
-  kLastLoginKey sessionKeyType = iota
-)
 
 type catSelectModel struct {
   categories.CatDetailStore

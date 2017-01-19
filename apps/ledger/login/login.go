@@ -76,8 +76,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       return
     }
     session := common.CreateUserSession(gs)
+    // Just in case another user is already logged in
+    session.ClearAll()
     session.SetUserId(user.Id)
-    session.SetLastLogin(user.LastLogin)
+    if !user.LastLogin.IsZero() {
+      session.SetLastLogin(user.LastLogin)
+    }
     session.ID = ""  // For added security, force a new session ID
     session.Save(r, w)
     http_util.Redirect(w, r, r.Form.Get("prev"))
