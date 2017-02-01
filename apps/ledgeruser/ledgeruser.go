@@ -153,10 +153,10 @@ func listUsers(store findb.UsersRunner) {
   for _, u := range users {
     lastLoginStr := "--"
     if !u.LastLogin.IsZero() {
-      lastLoginStr = u.LastLogin.Local().Format("01/02/2006 15:04")
+      lastLoginStr = u.LastLogin.Local().Format("Mon 01/02/2006 15:04")
     }
     fmt.Printf(
-        "%-12s %-16s %s\n",
+        "%-12s %-20s %s\n",
         u.Name,
         lastLoginStr,
         u.Permission)
