@@ -13,6 +13,7 @@ import (
 var (
   ConcurrentUpdate = errors.New("findb: Concurrent update.")
   NoSuchId = errors.New("findb: No Such Id.")
+  WrongPassword = errors.New("findb: Wrong password.")
   NoPermission = errors.New("findb: Insufficient permission.")
 )
 
@@ -456,7 +457,10 @@ func LoginUser(
   if err := store.UserByName(t, userName, user); err != nil {
     return err
   }
-  if !user.Verify(password) || user.Permission == fin.NonePermission {
+  if !user.Verify(password) {
+    return WrongPassword
+  }
+  if user.Permission == fin.NonePermission {
     return NoSuchId
   }
   newUser := *user

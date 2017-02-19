@@ -1266,8 +1266,8 @@ func LoginUser(t *testing.T, doer db.Doer, store LoginStore) {
   err = doer.Do(func (t db.Transaction) error {
     return findb.LoginUser(t, store, "name1", "wrong_password", bTime, &user)
   })
-  if err != findb.NoSuchId {
-    t.Errorf("Expected NoSuchId, got %v", err)
+  if err != findb.WrongPassword {
+    t.Errorf("Expected WrongPassword, got %v", err)
   }
 
   // Login failure should not update last login
@@ -1277,6 +1277,13 @@ func LoginUser(t *testing.T, doer db.Doer, store LoginStore) {
   }
   if user.LastLogin != aTime {
     t.Errorf("Expected last login %v, got %v", aTime, user.LastLogin)
+  }
+
+  err = doer.Do(func (t db.Transaction) error {
+    return findb.LoginUser(t, store, "no_user", "no_password", bTime, &user)
+  })
+  if err != findb.NoSuchId {
+    t.Errorf("Expected NoSuchId, got %v", err)
   }
 }
 

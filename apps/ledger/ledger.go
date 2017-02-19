@@ -1,6 +1,8 @@
 package main
 
 import (
+  "bytes"
+  "errors"
   "flag"
   "fmt"
   "github.com/gorilla/context"
@@ -8,7 +10,9 @@ import (
   "github.com/keep94/appcommon/db"
   "github.com/keep94/appcommon/db/sqlite_db"
   "github.com/keep94/appcommon/http_util"
+  "github.com/keep94/appcommon/lockout"
   "github.com/keep94/appcommon/logging"
+  "github.com/keep94/appcommon/mailer"
   "github.com/keep94/finance/apps/ledger/ac"
   "github.com/keep94/finance/apps/ledger/account"
   "github.com/keep94/finance/apps/ledger/catedit"
@@ -41,7 +45,10 @@ import (
   "github.com/keep94/gosqlite/sqlite"
   "github.com/keep94/ramstore"
   "github.com/keep94/weblogs"
+  "gopkg.in/yaml.v2"
+  "log"
   "net/http"
+  "os"
 )
 
 const (
@@ -57,6 +64,7 @@ var (
   fDb string
   fIcon string
   fTitle string
+  fGmailConfig string
 )
 
 var (
@@ -71,6 +79,12 @@ var (
   kClock date_util.SystemClock
 )
 
+var (
+  kGmailConfig *gmailConfigType
+  kMailer *mailer.Mailer
+  kLockout *lockout.Lockout
+)
+
 func main() {
   flag.Parse()
   if fDb == "" {
@@ -79,6 +93,9 @@ func main() {
     return
   }
   setupDb(fDb)
+  if fGmailConfig != "" {
+    setupGmail(fGmailConfig)
+  }
   mux := http.NewServeMux()
   http.HandleFunc("/", rootRedirect)
   http.Handle("/static/", http.StripPrefix("/static", static.New()))
@@ -89,10 +106,22 @@ func main() {
       fmt.Printf("Icon file not found - %s\n", fIcon)
     }
   }
-  http.Handle(
-      "/auth/login",
-      &login.Handler{
-          Doer: kDoer, SessionStore: kSessionStore, Store: kStore})
+  if fGmailConfig != "" {
+    http.Handle(
+        "/auth/login",
+        &login.Handler{
+            Doer: kDoer,
+            SessionStore: kSessionStore,
+            Store: kStore,
+            LO: kLockout,
+            Mailer: kMailer,
+            Recipients: kGmailConfig.To})
+  } else {
+    http.Handle(
+        "/auth/login",
+        &login.Handler{
+            Doer: kDoer, SessionStore: kSessionStore, Store: kStore})
+  }
   http.Handle(
       "/fin/", &authHandler{mux})
   mux.Handle(
@@ -212,6 +241,7 @@ func init() {
   flag.StringVar(&fDb, "db", "", "Path to database file")
   flag.StringVar(&fIcon, "icon", "", "Path to icon file")
   flag.StringVar(&fTitle, "title", "Finances", "Application title")
+  flag.StringVar(&fGmailConfig, "gmail_config", "", "Gmail config file path")
 }
 
 func setupDb(filepath string) {
@@ -257,4 +287,40 @@ func setupStores(session *common.UserSession) bool {
   }
 }
 
+type gmailConfigType struct {
+  Email string `yaml:"email"`
+  Password string `yaml:"password"`
+  To []string `yaml:"to"`
+  Failures int `yaml:"failures"`
+}
 
+func readGmailConfig(fileName string) (*gmailConfigType, error) {
+  f, err := os.Open(fileName)
+  if err != nil {
+    return nil, err
+  }
+  defer f.Close()
+  var content bytes.Buffer
+  if _, err := content.ReadFrom(f); err != nil {
+    return nil, err
+  }
+  var result gmailConfigType
+  if err := yaml.Unmarshal(content.Bytes(), &result); err != nil {
+    return nil, err
+  }
+  if result.Email == "" || result.Password == "" || len(result.To) == 0 || result.Failures < 1 {
+    return nil, errors.New(
+        "email, password, to, and failures fields required")
+  }
+  return &result, nil
+}
+
+func setupGmail(configPath string) {
+  var err error
+  kGmailConfig, err = readGmailConfig(configPath)
+  if err != nil {
+    log.Fatalf("Error reading config file: %v", err)
+  }
+  kMailer = mailer.New(kGmailConfig.Email, kGmailConfig.Password)
+  kLockout = lockout.New(kGmailConfig.Failures)
+}
