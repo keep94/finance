@@ -164,9 +164,7 @@ type AccountLinker struct {
 
 // AccountLink returns a URL to the account page with given account Id.
 func (a AccountLinker) AccountLink(id int64) *url.URL {
-  return http_util.NewUrl(
-      "/fin/account",
-      "acctId", strconv.FormatInt(id, 10))
+  return accountLink(id)
 }
 
 // UnreconiledLink returns a URL to the unreconciled page with given account Id.
@@ -241,6 +239,67 @@ func (e RecurringEntryLinker) NewEntryLink(paymentId int64) *url.URL {
       "prev", e.URL.String())
 }
 
+// LinkText can be hyperlink text or plain text
+type LinkText struct {
+
+  // nil if plain text
+  Link *url.URL
+
+  Text string
+}
+
+// CatLinker displays categories as a series of hyperlinks
+type CatLinker struct {
+  ListEntries *url.URL
+  Cds categories.CatDetailStore
+}
+
+// CatLink returns the category name as series of hyper links.
+// If c.ListEntries is nil, just returns the category full name as
+// plain text.
+func (c *CatLinker) CatLink(cp *fin.CatPayment) []LinkText {
+  count := cp.CatRecCount()
+  if c.ListEntries == nil || count != 1 {
+    return []LinkText{{Text: fullName(c.Cds, cp)}}
+  }
+  cat := cp.CatRecByIndex(0).Id()
+  if cat.Type == fin.AccountCat {
+    return []LinkText{
+        {
+            Text: fullName(c.Cds, cp),
+            Link: accountLink(cat.Id),
+        },
+    }
+  }
+  ancestors := categories.Ancestors(c.Cds, cat)
+  result := make([]LinkText, 0, 2*len(ancestors) - 1)
+  firstTime := true
+  for _, namedCat := range ancestors {
+    if !firstTime {
+        result = append(result, LinkText{Text: ":"})
+    }
+    firstTime = false
+    url := http_util.WithParams(c.ListEntries, "cat", namedCat.Id.String())
+    result = append(
+        result,
+        LinkText{Text: namedCat.Name, Link: url})
+  }
+  return result
+}
+
+// AccountNameLink returns the account name as a link.
+// If c.ListEntries is nil, returns account name as plain text.
+func (c *CatLinker) AccountNameLink(cp *fin.CatPayment) LinkText {
+  var url *url.URL
+  if c.ListEntries != nil {
+    url = accountLink(cp.PaymentId())
+  }
+  return LinkText{
+    Text: c.Cds.AccountDetailById(cp.PaymentId()).Name(),
+    Link: url,
+  }
+}
+
 // CatDisplayer is used to display categories.
 type CatDisplayer struct {
   categories.CatDetailStore
@@ -299,6 +358,12 @@ func formatUSD(amt int64) template.HTML {
     return template.HTML(fmt.Sprintf(negTemplate, fin.FormatUSD(-amt)))
   }
   return template.HTML(fmt.Sprintf(positiveTemplate, fin.FormatUSD(amt)))
+}
+
+func accountLink(id int64) *url.URL {
+  return http_util.NewUrl(
+      "/fin/account",
+      "acctId", strconv.FormatInt(id, 10))
 }
 
 func fullName(cds categories.CatDetailStore, cp *fin.CatPayment) string {

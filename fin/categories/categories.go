@@ -114,6 +114,12 @@ type AccountRemover interface {
   Remove(id int64) error
 }
 
+// NamedCat represents a category Id and name
+type NamedCat struct {
+  Id fin.Cat
+  Name string
+}
+
 // CatDetailStore contains all information on categories.
 // The zero value of CatDetailStore contains only the
 // trivial categories, "expense" and "income," and no accounts.
@@ -133,6 +139,18 @@ type detail struct {
   name string
   parentId int64
   origActive bool
+}
+
+// LeafNameById returns the category leaf name by category Id.
+func (cds CatDetailStore) LeafNameById(cat fin.Cat) string {
+  if cat.Id == 0 {
+    return topLevelName(cat.Type)
+  }
+  d, ok := cds.data().catIdToDetail[cat]
+  if !ok {
+    return fmt.Sprintf("%d", cat.Id)
+  }
+  return d.name
 }
 
 // DetailById returns details by category Id.
@@ -292,6 +310,16 @@ func (cds CatDetailStore) AccountDetailByName(name string) (accountDetail Accoun
 // IsChildOf returns true if childCat is a child of parentCat.
 func (cds CatDetailStore) IsChildOf(childCat, parentCat fin.Cat) bool {
   return cds.data().isChildOf(childCat, parentCat)
+}
+
+// ImmediateParent returns the immediate parent category of given
+// category. If given category is already top level, returns the same
+// top level category.
+func (cds CatDetailStore) ImmediateParent(cat fin.Cat) fin.Cat {
+  if cat.IsTop() {
+    return cat
+  }
+  return cds.data().immediateParent(cat)
 }
 
 // Filter returns a CatFilter for finding entries under a specific category.
@@ -557,6 +585,32 @@ func (cds CatDetailStore) RollUp(totals fin.CatTotals) (rolledUp fin.CatTotals, 
     rolledUp[k] = rolledUp[k] + v
   }
   return
+}
+
+// Ancestors returns all the ancestor categories of cat.
+// The first item in returned slice is always one of the top level
+// categories; the last item is always cat. The items in between are
+// the other ancestor categories of cat with the most distant
+// ones coming first. The name in each returned category is that category's
+// leaf name.
+func Ancestors(cds CatDetailStore, cat fin.Cat) []NamedCat {
+  var result []NamedCat
+  name := cds.LeafNameById(cat)
+  result = append(result, NamedCat{Id: cat, Name: name})
+  for !cat.IsTop() {
+    cat = cds.ImmediateParent(cat)
+    name := cds.LeafNameById(cat)
+    result = append(result, NamedCat{Id: cat, Name: name})
+  }
+  // reverse slice
+  left := 0
+  right := len(result) - 1
+  for left < right {
+    result[left], result[right] = result[right], result[left]
+    left++
+    right--
+  }
+  return result
 }
 
 func (cds catDetailStore) isChildOf(childCat, parentCat fin.Cat) bool {

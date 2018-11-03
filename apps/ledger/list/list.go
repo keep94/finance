@@ -140,10 +140,10 @@ Page: {{.DisplayPageNo}}&nbsp;
   {{range .Pager.Values}}
       <tr class="lineitem">
         <td>{{FormatDate .Date}}</td>
-        <td>{{$top.CatName .CatPayment}}</td>
+        <td>{{range $top.CatLink .CatPayment}}{{if .Link}}<a href="{{.Link}}">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{end}}</td>
         <td><a href="{{$top.EntryLink .Id}}">{{.Name}}</a></td>
         <td align=right>{{FormatUSD .Total}}</td>
-        <td>{{$top.AcctName .CatPayment}}</td>
+        <td>{{with $top.AccountNameLink .CatPayment}}{{if .Link}}<a href="{{.Link}}">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{end}}</td>
       </tr>
       <tr>
         <td>
@@ -184,6 +184,7 @@ type Handler struct {
   Cdc categoriesdb.Getter
   Store findb.EntriesRunner
   PageSize int
+  Links bool
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -235,6 +236,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     http_util.ReportError(w, "Error reading database.", err)
     return
   }
+  var listEntriesUrl *url.URL
+  if h.Links {
+    listEntriesUrl = r.URL
+  }
   http_util.WriteTemplate(
       w,
       kTemplate,
@@ -246,6 +251,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           totaler,
           http_util.Values{r.Form},
           common.CatDisplayer{cds},
+          common.CatLinker{ListEntries: listEntriesUrl, Cds: cds},
           common.EntryLinker{r.URL},
           errorMessage})
 }
@@ -255,6 +261,7 @@ type view struct {
   *aggregators.Totaler
   http_util.Values
   common.CatDisplayer
+  common.CatLinker
   common.EntryLinker
   ErrorMessage string
 }

@@ -12,6 +12,7 @@ import (
   "github.com/keep94/finance/fin/findb"
   "html/template"
   "net/http"
+  "net/url"
   "strconv"
 )
 
@@ -50,7 +51,7 @@ Page: {{.DisplayPageNo}}
   {{range .Values}}
       <tr class="lineitem">
         <td>{{FormatDate .Date}}</td>
-        <td>{{$top.CatName .CatPayment}}</a></td>
+        <td>{{range $top.CatLink .CatPayment}}{{if .Link}}<a href="{{.Link}}">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{end}}</td>
         <td><a href="{{$top.EntryLink .Id}}">{{.Name}}</td>
         <td align=right>{{FormatUSD .Total}}</td>
         <td align=right>{{FormatUSD .Balance}}</td>
@@ -74,11 +75,16 @@ var (
   kTemplate *template.Template
 )
 
+var (
+  kListEntriesUrl = http_util.NewUrl("/fin/list")
+)
+
 type Handler struct {
   Doer db.Doer
   Store findb.EntriesByAccountIdRunner
   Cdc categoriesdb.Getter
   PageSize int
+  Links bool
 }
 
 
@@ -104,6 +110,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     http_util.ReportError(w, "Error reading database.", err)
     return
   }
+  var listEntriesUrl *url.URL
+  if h.Links {
+    listEntriesUrl = kListEntriesUrl
+  }
   http_util.WriteTemplate(
       w,
       kTemplate,
@@ -112,14 +122,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
               PageBuffer: ebpb.PageBuffer,
               URL: r.URL,
               PageNoParam: kPageParam},
-          CatDisplayer: common.CatDisplayer{cds},
+          CatLinker: common.CatLinker{Cds: cds, ListEntries: listEntriesUrl},
           EntryLinker: common.EntryLinker{r.URL},
           Account: accountWrapper{&account}})
 }
 
 type view struct {
   http_util.Pager
-  common.CatDisplayer
+  common.CatLinker
   common.AccountLinker
   common.EntryLinker
   Account accountWrapper

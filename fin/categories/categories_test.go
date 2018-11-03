@@ -136,6 +136,66 @@ func TestPurgeableAccountsUsed(t *testing.T) {
   }
 }
 
+func TestAncestors(t *testing.T) {
+  cds := createCatDetailStore()
+  verifyAncestors(t, cds, toCat("0:0"),
+      "0:0", "expense")
+  verifyAncestors(t, cds, toCat("0:6"),
+      "0:0", "expense",
+      "0:2", "charity",
+      "0:6", "inactive")
+  verifyAncestors(t, cds, toCat("0:8"),
+      "0:0", "expense",
+      "0:101", "101",
+      "0:8", "childagain")
+  verifyAncestors(t, cds, toCat("1:0"),
+      "1:0", "income")
+  verifyAncestors(t, cds, toCat("1:1"),
+      "1:0", "income",
+      "1:1", "google")
+}
+
+func TestLeafNameById(t *testing.T) {
+  cds := createCatDetailStore()
+  verifyLeafName(t, cds, toCat("0:0"), "expense")
+  verifyLeafName(t, cds, toCat("0:1"), "car")
+  verifyLeafName(t, cds, toCat("0:2"), "charity")
+  verifyLeafName(t, cds, toCat("0:3"), "inactive")
+  verifyLeafName(t, cds, toCat("0:4"), "gas")
+  verifyLeafName(t, cds, toCat("0:5"), "charity")
+  verifyLeafName(t, cds, toCat("0:6"), "inactive")
+  verifyLeafName(t, cds, toCat("0:7"), "child")
+  verifyLeafName(t, cds, toCat("0:8"), "childagain")
+  verifyLeafName(t, cds, toCat("1:0"), "income")
+  verifyLeafName(t, cds, toCat("1:1"), "google")
+  verifyLeafName(t, cds, toCat("1:2"), "mtv")
+  verifyLeafName(t, cds, toCat("1:3"), "bonus")
+  verifyLeafName(t, cds, toCat("2:1"), "checking")
+  verifyLeafName(t, cds, toCat("2:2"), "savings")
+  verifyLeafName(t, cds, toCat("2:3"), "inactive")
+  verifyLeafName(t, cds, toCat("0:101"), "101")
+  verifyLeafName(t, cds, toCat("1:101"), "101")
+  verifyLeafName(t, cds, toCat("2:101"), "101")
+}
+
+func TestImmediateParent(t *testing.T) {
+  cds := createCatDetailStore()
+  verifyImmediateParent(t, cds, toCat("0:0"), "0:0")
+  verifyImmediateParent(t, cds, toCat("0:1"), "0:0")
+  verifyImmediateParent(t, cds, toCat("0:2"), "0:0")
+  verifyImmediateParent(t, cds, toCat("0:4"), "0:1")
+  verifyImmediateParent(t, cds, toCat("0:6"), "0:2")
+  verifyImmediateParent(t, cds, toCat("0:7"), "0:3")
+  verifyImmediateParent(t, cds, toCat("0:8"), "0:101")
+  verifyImmediateParent(t, cds, toCat("1:0"), "1:0")
+  verifyImmediateParent(t, cds, toCat("1:1"), "1:0")
+  verifyImmediateParent(t, cds, toCat("1:3"), "1:1")
+  verifyImmediateParent(t, cds, toCat("2:1"), "2:1")
+  verifyImmediateParent(t, cds, toCat("0:101"), "0:0")
+  verifyImmediateParent(t, cds, toCat("1:101"), "1:0")
+  verifyImmediateParent(t, cds, toCat("2:101"), "2:101")
+}
+
 func TestDetailById(t *testing.T) {
   cds := createCatDetailStore()
   verifyCatDetail(t, cds, toCat("0:0"), "expense", true)
@@ -500,6 +560,46 @@ func verifyCatDetail(t *testing.T, cds CatDetailStore, cat fin.Cat, name string,
   }
   if cd.Active() != active {
     t.Errorf("Expected %v, got %v", active, cd.Active())
+  }
+}
+
+func verifyLeafName(t *testing.T, cds CatDetailStore, cat fin.Cat, name string) {
+  an := cds.LeafNameById(cat)
+  if an != name {
+    t.Errorf("Expected %v, got %v", name, an)
+  }
+}
+
+func verifyImmediateParent(
+    t *testing.T, cds CatDetailStore, cat fin.Cat, parent string) {
+  parentCat := cds.ImmediateParent(cat)
+  if parentCat.String() != parent {
+    t.Errorf("Expected %v, got %v", parent, parentCat.String())
+  }
+}
+
+func verifyAncestors(
+    t *testing.T, cds CatDetailStore, cat fin.Cat, catAndName ...string) {
+  ancestors := Ancestors(cds, cat)
+  if len(ancestors) != len(catAndName) / 2 {
+    t.Errorf(
+        "Expected %d ancestors, got %d", len(catAndName) / 2, len(ancestors))
+  }
+  for i := 0; i < len(ancestors); i++ {
+    if ancestors[i].Id.String() != catAndName[2*i] {
+      t.Errorf(
+          "Index %d, expected %s, got %s",
+           i,
+           catAndName[2*i],
+           ancestors[i].Id.String())
+    }
+    if ancestors[i].Name != catAndName[2*i + 1] {
+      t.Errorf(
+          "Index %d, expected %s, got %s",
+           i,
+           catAndName[2*i + 1],
+           ancestors[i].Name)
+    }
   }
 }
 

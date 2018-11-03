@@ -65,6 +65,7 @@ var (
   fIcon string
   fTitle string
   fGmailConfig string
+  fLinks bool
 )
 
 var (
@@ -129,7 +130,8 @@ func main() {
       &list.Handler{
          Store: kReadOnlyStore,
          Cdc: kReadOnlyCatDetailCache,
-         PageSize: kPageSize})
+         PageSize: kPageSize,
+         Links: fLinks})
   mux.Handle(
       "/fin/recurringlist",
       &recurringlist.Handler{
@@ -140,7 +142,8 @@ func main() {
           Store: kReadOnlyStore,
           Cdc: kReadOnlyCatDetailCache,
           Doer: kDoer,
-          PageSize: kPageSize})
+          PageSize: kPageSize,
+          Links: fLinks})
   mux.Handle("/fin/single", &single.Handler{Doer: kDoer, Clock: kClock})
   mux.Handle(
       "/fin/recurringsingle",
@@ -242,6 +245,7 @@ func init() {
   flag.StringVar(&fIcon, "icon", "", "Path to icon file")
   flag.StringVar(&fTitle, "title", "Finances", "Application title")
   flag.StringVar(&fGmailConfig, "gmail_config", "", "Gmail config file path")
+  flag.BoolVar(&fLinks, "links", false, "Show categories as links in listings")
 }
 
 func setupDb(filepath string) {
