@@ -148,7 +148,7 @@ func (cds CatDetailStore) LeafNameById(cat fin.Cat) string {
   }
   d, ok := cds.data().catIdToDetail[cat]
   if !ok {
-    return fmt.Sprintf("%d", cat.Id)
+    return strconv.FormatInt(cat.Id, 10)
   }
   return d.name
 }
