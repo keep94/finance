@@ -266,7 +266,7 @@ func (c *CatLinker) CatLink(cp *fin.CatPayment) []LinkText {
   if cat.Type == fin.AccountCat {
     return []LinkText{
         {
-            Text: fullName(c.Cds, cp),
+            Text: c.Cds.DetailById(cat).FullName(),
             Link: accountLink(cat.Id),
         },
     }
