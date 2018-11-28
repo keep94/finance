@@ -25,7 +25,7 @@ var (
 <html>
 <head>
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
-  <script src="/static/ledger.js"></script>
+  <script src="/static/selectall.js"></script>
 </head>
 <body>
 <h2>{{.Account.Name}}</h2>    

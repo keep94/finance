@@ -2,13 +2,6 @@ package static
 
 var (
   kLedgerJs = `
-function selectAll(checkAll, className) {
-  checkboxes = checkAll.form.getElementsByClassName(className);
-  for (var idx = 0; checkboxes[idx]; idx++) {
-    checkboxes[idx].checked = checkAll.checked;
-  }
-}
-
 function populateSelect(select, options) {
   for (var idx = 0; options[idx]; idx += 2) {
     var o = document.createElement("option");
