@@ -25,6 +25,7 @@ var (
 <html>
 <head>
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
+  <script src="/static/ledger.js"></script>
 </head>
 <body>
 <h2>{{.Account.Name}}</h2>    
@@ -37,7 +38,8 @@ Balance: {{FormatUSD .Account.Balance}}&nbsp;&nbsp;&nbsp;&nbsp;Reconciled: {{For
 <input type="hidden" name="xsrf" value="{{.Xsrf}}">
 <input type="hidden" name="edit_id" value="">
 {{if .Values}}
-<input type="submit" value="Reconcile">
+<input type="submit" value="Reconcile"><br>
+  <input type="checkbox" onchange="selectAll(this, 'selectable')">
   <table>
     <tr>
       <td>Reconciled</td>
@@ -49,9 +51,9 @@ Balance: {{FormatUSD .Account.Balance}}&nbsp;&nbsp;&nbsp;&nbsp;Reconciled: {{For
 {{with $top := .}}
   {{range .Values}}
     <tr class="lineitem">
-      <td><input type="checkbox" name="id" value="{{.Id}}"></td>
+      <td><input type="checkbox" name="id" class="selectable" value="{{.Id}}"></td>
       <td>{{FormatDate .Date}}</td>
-      <td>{{$top.CatName .CatPayment}}</a></td>
+      <td>{{$top.CatName .CatPayment}}</td>
       <td><a href="#" onclick="document.forms[0].edit_id.value={{.Id}}; document.forms[0].submit()">{{.Name}}</td>
       <td align=right>{{FormatUSD .Total}}</td>
     </tr>
