@@ -39,7 +39,9 @@ var (
   </form>
 {{end}}
 <a href="{{.NewEntryLink .AccountId}}">New Recurring Entry</a>
+{{if .AccountId}}
 <a href="{{.AccountLink .AccountId}}">Normal View</a><br><br>
+{{end}}
 {{if .Error}}
   <span class="error">{{.Error.Error}}</span>
 {{end}}
