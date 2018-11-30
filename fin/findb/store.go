@@ -443,7 +443,8 @@ type UpdateUserByNameRunner interface {
 
 // LoginUser logs in a user. Caller responsible for setting any cookies
 // resulting from login. On success, LoginUser sets logged in user at
-// user. If password or userName is wrong, LoginUser returns NoSuchId.
+// user. If userName is wrong, LoginUser returns NoSuchId. If password
+// is wrong, LoginUser returns WrongPassword.
 func LoginUser(
     t db.Transaction,
     store UpdateUserByNameRunner,
