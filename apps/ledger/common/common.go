@@ -378,7 +378,7 @@ func fullName(cds categories.CatDetailStore, cp *fin.CatPayment) string {
 }
 
 func formatDate(t time.Time) string {
-  return t.Format("01/02/2006")
+  return t.Format("Mon 01/02/2006")
 }
 
 type sessionBatchKeyType int64
