@@ -64,8 +64,7 @@ func TestFromEntryAggregatorError(t *testing.T) {
 }
 
 func makeTotal(total int64) fin.CatPayment {
-  cpb := fin.CatPaymentBuilder{}
-  return cpb.AddCatRec(&fin.CatRec{fin.NewCat("0:7"), -total, false}).Build()
+  return fin.NewCatPayment(fin.NewCat("0.7"), -total, false, 0)
 }
 
 type entryTotaler struct {

@@ -292,20 +292,19 @@ func TestReadQFXMemoField(t *testing.T) {
     return
   }
   entries := batch.Entries()
-  cp := fin.CatPaymentBuilder{}
   expectedEntries := []*fin.Entry {
       {
           Date: date_util.YMD(2016, 8, 30),
           Name: "Choose Name & Field",
-          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 514}).Build()},
+          CatPayment: fin.NewCatPayment(fin.Expense, 514, true, 3)},
       {
           Date: date_util.YMD(2016, 8, 28),
           Name: "Just Name & Field",
-          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 512}).Build()},
+          CatPayment: fin.NewCatPayment(fin.Expense, 512, true, 3)},
       {
           Date: date_util.YMD(2016, 8, 29),
           Name: "Just Memo & Field",
-          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 513}).Build()}}
+          CatPayment: fin.NewCatPayment(fin.Expense, 513, true, 3)}}
   if !reflect.DeepEqual(expectedEntries, entries) {
     t.Errorf("Expected %v, got %v", expectedEntries, entries)
   }
@@ -321,20 +320,19 @@ func TestReadQFX(t *testing.T) {
     return
   }
   entries := batch.Entries()
-  cp := fin.CatPaymentBuilder{}
   expectedEntries := []*fin.Entry {
       {
           Date: date_util.YMD(2012, 11, 14),
           Name: "WHOLEFDS LAT 10155",
-          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 10075}).Build()},
+          CatPayment: fin.NewCatPayment(fin.Expense, 10075, true, 3)},
       {
           Date: date_util.YMD(2012, 11, 14),
           Name: "Amazon.com",
-          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 5714}).Build()},
+          CatPayment: fin.NewCatPayment(fin.Expense, 5714, true, 3)},
       {
           Date: date_util.YMD(2012, 11, 15),
           Name: "safeway",
-          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 1212}).Build()}}
+          CatPayment: fin.NewCatPayment(fin.Expense, 1212, true, 3)}}
   if !reflect.DeepEqual(expectedEntries, entries) {
     t.Errorf("Expected %v, got %v", expectedEntries, entries)
   }

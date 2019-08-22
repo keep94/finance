@@ -115,40 +115,8 @@ type CatRec struct {
   R bool
 }
 
-// Sets this CatRec to other
-func (c *CatRec) Set(other ROCatRec) {
-  c.C = other.Id()
-  c.A = other.Amount()
-  c.R = other.Reconciled()
-}
-
 func (c *CatRec) String() string {
   return fmt.Sprintf("%v", *c)
-}
-
-// ROCatRec represents a read-only CatRec
-type ROCatRec struct {
-  ptr *CatRec
-}
-
-// NewROCatRec creates a ROCatRec that wraps c.
-func NewROCatRec(c *CatRec) ROCatRec {
-  return ROCatRec{c}
-}
-
-// Id returns the C field.
-func (c ROCatRec) Id() Cat {
-  return c.ptr.C
-}
-
-// Amount returns the A field.
-func (c ROCatRec) Amount() int64 {
-  return c.ptr.A
-}
-
-// Reconciled returns the R field.
-func (c ROCatRec) Reconciled() bool {
-  return c.ptr.R
 }
 
 // Unmarshaller builds components of CatPayment from database columns.
@@ -210,15 +178,13 @@ func (c *CatPayment) CatRecCount() int {
   return len(c.cr)
 }
 
-func (c *CatPayment) CatRecByIndex(idx int) ROCatRec {
-  return NewROCatRec(&c.cr[idx])
+func (c *CatPayment) CatRecByIndex(idx int) CatRec {
+  return c.cr[idx]
 }
 
-func (c *CatPayment) CatRecs() []ROCatRec {
-  result := make([]ROCatRec, len(c.cr))
-  for i := range result {
-    result[i] = NewROCatRec(&c.cr[i])
-  }
+func (c *CatPayment) CatRecs() []CatRec {
+  result := make([]CatRec, len(c.cr))
+  copy(result, c.cr)
   return result
 }
 
@@ -336,7 +302,7 @@ func (c *CatPaymentBuilder) Set(cp *CatPayment) *CatPaymentBuilder {
   c.initialize()
   c.ClearCatRecs()
   for idx := range cp.cr {
-    c.AddCatRec(&cp.cr[idx])
+    c.AddCatRec(cp.cr[idx])
   }
   c.SetPaymentId(cp.PaymentId())
   c.SetReconciled(cp.Reconciled())
@@ -364,20 +330,15 @@ func (c *CatPaymentBuilder) Build() CatPayment {
 }
 
 // AddCatRec Adds a CatRec. It merges CatRecs having the same category.
-func (c *CatPaymentBuilder) AddCatRec(cr *CatRec) *CatPaymentBuilder {
-  return c.AddROCatRec(NewROCatRec(cr))
-}
-
-// AddROCatRec Adds a ROCatRec. It merges CatRecs having the same category.
-func (c *CatPaymentBuilder) AddROCatRec(cr ROCatRec) *CatPaymentBuilder {
+func (c *CatPaymentBuilder) AddCatRec(cr CatRec) *CatPaymentBuilder {
   c.initialize()
-  ocr := c.m[cr.Id()]
-  ocr.C = cr.Id()
-  ocr.A += cr.Amount()
-  if cr.Reconciled() {
+  ocr := c.m[cr.C]
+  ocr.C = cr.C
+  ocr.A += cr.A
+  if cr.R {
     ocr.R = true
   }
-  c.m[cr.Id()] = ocr
+  c.m[cr.C] = ocr
   return c
 }
 

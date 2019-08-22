@@ -10,18 +10,18 @@ func TestBuildCatPayment(t *testing.T) {
   cpb.SetPaymentId(5).SetReconciled(true)
 
   // 0:9 should not disappear even though its total amount is 0
-  cpb.AddCatRec(&CatRec{NewCat("0:9"), 4009, false})
-  cpb.AddCatRec(&CatRec{NewCat("0:9"), -4009, false})
+  cpb.AddCatRec(CatRec{NewCat("0:9"), 4009, false})
+  cpb.AddCatRec(CatRec{NewCat("0:9"), -4009, false})
 
-  cpb.AddCatRec(&CatRec{NewCat("0:5"), 2324, false})
-  cpb.AddCatRec(&CatRec{NewCat("0:6"), 9002, false})
+  cpb.AddCatRec(CatRec{NewCat("0:5"), 2324, false})
+  cpb.AddCatRec(CatRec{NewCat("0:6"), 9002, false})
 
   // 2:5 should be ignored since it is the payment type
-  cpb.AddCatRec(&CatRec{NewCat("2:5"), 3535, false})
-  cpb.AddCatRec(&CatRec{NewCat("2:6"), 5003, false})
+  cpb.AddCatRec(CatRec{NewCat("2:5"), 3535, false})
+  cpb.AddCatRec(CatRec{NewCat("2:6"), 5003, false})
 
   // This 0:5 should be merged with first one
-  cpb.AddCatRec(&CatRec{NewCat("0:5"), 1076, false})
+  cpb.AddCatRec(CatRec{NewCat("0:5"), 1076, false})
 
   cp := cpb.Build()
   if cp.WithPayment(7) {
@@ -89,8 +89,8 @@ func TestBuildCatPayment(t *testing.T) {
 
 func TestBuildCatPaymentSetPaymentLast(t *testing.T) {
   cpb := CatPaymentBuilder{}
-  cpb.AddCatRec(&CatRec{NewCat("2:5"), 3456, false})
-  cpb.AddCatRec(&CatRec{NewCat("0:1"), 1234, false})
+  cpb.AddCatRec(CatRec{NewCat("2:5"), 3456, false})
+  cpb.AddCatRec(CatRec{NewCat("0:1"), 1234, false})
   cpb.SetPaymentId(5)
   cp := cpb.Build()
   if verifyCatPayment(t, &cp, -1234, 1, 5, false) {
@@ -118,13 +118,13 @@ func TestZeroCatPaymentAndBuilder(t *testing.T) {
 
 func TestMergeReconcileInCatRec(t *testing.T) {
   cpb := CatPaymentBuilder{}
-  cpb.AddCatRec(&CatRec{NewCat("0:5"), 10000, false})
+  cpb.AddCatRec(CatRec{NewCat("0:5"), 10000, false})
   cpb.SetPaymentId(9).SetReconciled(true)
   cp := cpb.Build()
-  cpb.AddCatRec(&CatRec{NewCat("0:7"), 3000, true})
-  cpb.AddCatRec(&CatRec{NewCat("0:7"), 1000, false})
+  cpb.AddCatRec(CatRec{NewCat("0:7"), 3000, true})
+  cpb.AddCatRec(CatRec{NewCat("0:7"), 1000, false})
   cp2 := cpb.Build()
-  cpb.AddCatRec(&CatRec{NewCat("0:7"), 2000, false})
+  cpb.AddCatRec(CatRec{NewCat("0:7"), 2000, false})
   cp3 := cpb.Build()
   verifyCatRec(t, &cp, 0, "0:5", 10000, false)
   verifyCatPayment(t, &cp, -10000, 1, 9, true)
@@ -159,9 +159,9 @@ func TestSetSingleCat(t *testing.T) {
 func TestChangeCat(t *testing.T) {
   cpb := CatPaymentBuilder{}
   cp := cpb.AddCatRec(
-      &CatRec{NewCat("0:5"), 1000, false}).AddCatRec(
-      &CatRec{NewCat("0:7"), 2000, false}).AddCatRec(
-      &CatRec{NewCat("0:10"), 4000, false}).SetPaymentId(
+      CatRec{NewCat("0:5"), 1000, false}).AddCatRec(
+      CatRec{NewCat("0:7"), 2000, false}).AddCatRec(
+      CatRec{NewCat("0:10"), 4000, false}).SetPaymentId(
       9).SetReconciled(true).Build()
   // Change 0:5 to 0:7
   modifyCat(NewCat("0:5"), NewCat("0:7"), &cp)
@@ -173,12 +173,12 @@ func TestChangeCat(t *testing.T) {
 func TestCatPaymentBuilderSet(t *testing.T) {
   cpb := CatPaymentBuilder{}
   cp := cpb.AddCatRec(
-      &CatRec{NewCat("0:5"), 1000, false}).AddCatRec(
-      &CatRec{NewCat("0:7"), 2000, false}).AddCatRec(
-      &CatRec{NewCat("0:10"), 4000, false}).SetPaymentId(
+      CatRec{NewCat("0:5"), 1000, false}).AddCatRec(
+      CatRec{NewCat("0:7"), 2000, false}).AddCatRec(
+      CatRec{NewCat("0:10"), 4000, false}).SetPaymentId(
       9).SetReconciled(true).Build()
   newCpb := CatPaymentBuilder{}
-  newCpb.AddCatRec(&CatRec{NewCat("0:11"), 5500, true})
+  newCpb.AddCatRec(CatRec{NewCat("0:11"), 5500, true})
   newCpb.Set(&cp)
   newCp := newCpb.Build()
   verifyCatPayment(t, &newCp, -7000, 3, 9, true)
@@ -193,10 +193,10 @@ func TestCatTotals(t *testing.T) {
   var ct CatTotals = make(map[Cat]int64)
   cpb := CatPaymentBuilder{}
   cp := cpb.AddCatRec(
-      &CatRec{NewCat("0:7"), 6000, false}).AddCatRec(
-      &CatRec{NewCat("1:5"), -3000, false}).AddCatRec(
-      &CatRec{NewCat("0:3"), 2000, true}).AddCatRec(
-      &CatRec{NewCat("2:2"), 1000, false}).SetPaymentId(
+      CatRec{NewCat("0:7"), 6000, false}).AddCatRec(
+      CatRec{NewCat("1:5"), -3000, false}).AddCatRec(
+      CatRec{NewCat("0:3"), 2000, true}).AddCatRec(
+      CatRec{NewCat("2:2"), 1000, false}).SetPaymentId(
       1).SetReconciled(false).Build()
   ct.Include(&cp)
   var expected CatTotals = map[Cat]int64 {
@@ -207,11 +207,11 @@ func TestCatTotals(t *testing.T) {
     t.Errorf("Expected %v, got %v", expected, ct)
   }
   cp = cpb.AddCatRec(
-      &CatRec{NewCat("0:7"), 1000, false}).AddCatRec(
-      &CatRec{NewCat("1:5"), 3000, false}).AddCatRec(
-      &CatRec{NewCat("1:7"), 0, false}).AddCatRec(
-      &CatRec{NewCat("0:4"), 1500, true}).AddCatRec(
-      &CatRec{NewCat("2:2"), 1000, false}).SetPaymentId(
+      CatRec{NewCat("0:7"), 1000, false}).AddCatRec(
+      CatRec{NewCat("1:5"), 3000, false}).AddCatRec(
+      CatRec{NewCat("1:7"), 0, false}).AddCatRec(
+      CatRec{NewCat("0:4"), 1500, true}).AddCatRec(
+      CatRec{NewCat("2:2"), 1000, false}).SetPaymentId(
       1).SetReconciled(false).Build()
   ct.Include(&cp)
   expected = map[Cat]int64 {
@@ -229,10 +229,10 @@ func TestAccountSet(t *testing.T) {
   as := make(AccountSet)
   cpb := CatPaymentBuilder{}
   cp := cpb.AddCatRec(
-      &CatRec{NewCat("0:7"), 6000, false}).AddCatRec(
-      &CatRec{NewCat("1:5"), -3000, false}).AddCatRec(
-      &CatRec{NewCat("2:4"), 2000, true}).AddCatRec(
-      &CatRec{NewCat("2:2"), 1000, false}).SetPaymentId(
+      CatRec{NewCat("0:7"), 6000, false}).AddCatRec(
+      CatRec{NewCat("1:5"), -3000, false}).AddCatRec(
+      CatRec{NewCat("2:4"), 2000, true}).AddCatRec(
+      CatRec{NewCat("2:2"), 1000, false}).SetPaymentId(
       1).SetReconciled(false).Build()
   as.Include(&cp)
   var expected AccountSet = AccountSet{1: true, 2: true, 4:true}
@@ -245,12 +245,12 @@ func TestAccountDeltas(t *testing.T) {
   var d AccountDeltas = make(map[int64]*AccountDelta)
   cpb := CatPaymentBuilder{}
   cp := cpb.AddCatRec(
-      &CatRec{NewCat("0:7"), 6000, false}).AddCatRec(
-      &CatRec{NewCat("2:3"), 1100, true}).AddCatRec(
-      &CatRec{NewCat("2:3"), 900, false}).AddCatRec(
-      &CatRec{NewCat("2:2"), 700, false}).AddCatRec(
-      &CatRec{NewCat("2:2"), 300, false}).AddCatRec(
-      &CatRec{NewCat("2:1"), 5800, true}).SetPaymentId(
+      CatRec{NewCat("0:7"), 6000, false}).AddCatRec(
+      CatRec{NewCat("2:3"), 1100, true}).AddCatRec(
+      CatRec{NewCat("2:3"), 900, false}).AddCatRec(
+      CatRec{NewCat("2:2"), 700, false}).AddCatRec(
+      CatRec{NewCat("2:2"), 300, false}).AddCatRec(
+      CatRec{NewCat("2:1"), 5800, true}).SetPaymentId(
       1).SetReconciled(false).Build()
   d.Include(&cp)
   var expected AccountDeltas = map[int64]*AccountDelta{
@@ -259,7 +259,7 @@ func TestAccountDeltas(t *testing.T) {
     t.Errorf("Expected %v, got %v", expected, d)
   }
   cp2 := cpb.AddCatRec(
-      &CatRec{NewCat("0:7"), 2000, false}).SetPaymentId(
+      CatRec{NewCat("0:7"), 2000, false}).SetPaymentId(
       3).SetReconciled(true).Build()
   d.Include(&cp2)
   expected = map[int64]*AccountDelta{
@@ -286,9 +286,9 @@ func TestZeroCatPaymentsEqual(t *testing.T) {
 
 func TestCatRecs(t *testing.T) {
   cpb := CatPaymentBuilder{}
-  cpb.AddCatRec(&CatRec{C: NewCat("0:1"), A: 1})
-  cpb.AddCatRec(&CatRec{C: NewCat("0:2"), A: 1})
-  cpb.AddCatRec(&CatRec{C: NewCat("0:3"), A: 1})
+  cpb.AddCatRec(CatRec{C: NewCat("0:1"), A: 1})
+  cpb.AddCatRec(CatRec{C: NewCat("0:2"), A: 1})
+  cpb.AddCatRec(CatRec{C: NewCat("0:3"), A: 1})
   cp := cpb.Build()
   catrecs := cp.CatRecs()
   if len(catrecs) != 3 {
@@ -296,8 +296,8 @@ func TestCatRecs(t *testing.T) {
   }
   for i := 0; i < 3; i++ {
     expected := Cat{Id: int64(i) +1, Type: ExpenseCat}
-    if catrecs[i].Id() != expected {
-      t.Errorf("Expected %v, got %v", expected, catrecs[i].Id())
+    if catrecs[i].C != expected {
+      t.Errorf("Expected %v, got %v", expected, catrecs[i].C)
     }
   }
 }
@@ -385,13 +385,13 @@ func verifyParseUSDError(t *testing.T, s string) {
 
 func verifyCatRec(t *testing.T, cp *CatPayment, idx int, catId string, amount int64, reconciled bool) {
   catrec := cp.CatRecByIndex(idx)
-  if catrec.Reconciled() != reconciled {
-    t.Errorf("Expected %v, got %v", reconciled, catrec.Reconciled())
+  if catrec.R != reconciled {
+    t.Errorf("Expected %v, got %v", reconciled, catrec.R)
   }
-  if catrec.Amount() != amount {
-    t.Errorf("Expected %v, got %v", amount, catrec.Amount())
+  if catrec.A != amount {
+    t.Errorf("Expected %v, got %v", amount, catrec.A)
   }
-  if output := catrec.Id().ToString(); output != catId {
+  if output := catrec.C.ToString(); output != catId {
     t.Errorf("Expected %v, got %v", catId, output)
   }
 }
@@ -419,16 +419,12 @@ func verifyCatPayment(t *testing.T, cp *CatPayment, total int64, count int, paym
 func modifyCat(oldCat, newCat Cat, cp *CatPayment) {
   cpb := CatPaymentBuilder{}
   cpb.Set(cp).ClearCatRecs()
-  newCatRec := CatRec{}
   oldCatRecs := cp.CatRecs()
   for _, oldCatRec := range oldCatRecs {
-    if oldCatRec.Id() == oldCat {
-      newCatRec.Set(oldCatRec)
-      newCatRec.C = newCat
-      cpb.AddCatRec(&newCatRec)
-    } else {
-      cpb.AddROCatRec(oldCatRec)
+    if oldCatRec.C == oldCat {
+      oldCatRec.C = newCat
     }
+    cpb.AddCatRec(oldCatRec)
   }
   *cp = cpb.Build()
 }

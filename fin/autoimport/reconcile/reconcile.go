@@ -125,7 +125,7 @@ func (f filterer) Filter(ptr interface{}) error {
   p := ptr.(*fin.Entry)
   if p.Status != fin.Reviewed {
     p.Name = f.Name
-    if p.CatRecCount() == 1 && p.CatRecByIndex(0).Id() == fin.Expense {
+    if p.CatRecCount() == 1 && p.CatRecByIndex(0).C == fin.Expense {
       p.CatPayment = f.CatPayment
     } else {
       p.Reconcile(f.PaymentId())

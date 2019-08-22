@@ -92,11 +92,10 @@ func TestByPeriodYearly(t *testing.T) {
 
 func aggregate(start, end time.Time, bpt *ByPeriodTotaler) {
   entry := fin.Entry{}
-  cpb := fin.CatPaymentBuilder{}
   var amount int64 = 1
   for date := start; date.Before(end); date = date.AddDate(0, 0, 1) {
     entry.Date = date
-    entry.CatPayment = cpb.AddCatRec(&fin.CatRec{A: amount}).Build()
+    entry.CatPayment = fin.NewCatPayment(fin.Expense, amount, false, 0)
     bpt.Include(&entry)
     amount++
   }

@@ -551,13 +551,13 @@ func (cds CatDetailStore) AccountRemove(
 }
 
 // SortedCatRecs sorts catrecs by category full name and returns catrecs.
-func (cds CatDetailStore) SortedCatRecs(catrecs []fin.ROCatRec) []fin.ROCatRec {
+func (cds CatDetailStore) SortedCatRecs(catrecs []fin.CatRec) []fin.CatRec {
   count := len(catrecs)
   cdacr := catDetailsAndCatRecs{
       catDetails: make(catDetails, count),
       catrecs: catrecs}
   for i := 0; i < count; i++ {
-    cdacr.catDetails[i] = cds.DetailById(catrecs[i].Id())
+    cdacr.catDetails[i] = cds.DetailById(catrecs[i].C)
   }
   sort.Sort(&cdacr)
   return catrecs
@@ -760,7 +760,7 @@ func (s accountDetails) Less(i, j int) bool {
 
 type catDetailsAndCatRecs struct {
   catDetails
-  catrecs []fin.ROCatRec
+  catrecs []fin.CatRec
 }
 
 func (s *catDetailsAndCatRecs) Swap(i, j int) {

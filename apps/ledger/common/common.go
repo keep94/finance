@@ -262,7 +262,7 @@ func (c *CatLinker) CatLink(cp *fin.CatPayment) []LinkText {
   if c.ListEntries == nil || count != 1 {
     return []LinkText{{Text: fullName(c.Cds, cp)}}
   }
-  cat := cp.CatRecByIndex(0).Id()
+  cat := cp.CatRecByIndex(0).C
   if cat.Type == fin.AccountCat {
     return []LinkText{
         {
@@ -374,7 +374,7 @@ func fullName(cds categories.CatDetailStore, cp *fin.CatPayment) string {
   if count == 0 {
      return "--Missing--"
   }
-  return cds.DetailById(cp.CatRecByIndex(0).Id()).FullName()
+  return cds.DetailById(cp.CatRecByIndex(0).C).FullName()
 }
 
 func formatDate(t time.Time) string {

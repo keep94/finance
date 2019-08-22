@@ -299,19 +299,19 @@ func TestActiveAccountDetails(t *testing.T) {
 
 func TestSortedCatRecs(t *testing.T) {
   cds := createCatDetailStore()
-  catrecs := []fin.ROCatRec {
-      fin.NewROCatRec(&fin.CatRec{C: toCat("1:2")}),
-      fin.NewROCatRec(&fin.CatRec{C: toCat("1:4")}),
-      fin.NewROCatRec(&fin.CatRec{C: toCat("2:1")}),
-      fin.NewROCatRec(&fin.CatRec{C: toCat("0:101")}),
-      fin.NewROCatRec(&fin.CatRec{C: toCat("0:1")})}
+  catrecs := []fin.CatRec{
+      {C: toCat("1:2")},
+      {C: toCat("1:4")},
+      {C: toCat("2:1")},
+      {C: toCat("0:101")},
+      {C: toCat("0:1")}}
   actual := cds.SortedCatRecs(catrecs)
-  expected := []fin.ROCatRec {
-      fin.NewROCatRec(&fin.CatRec{C:toCat("0:101")}),
-      fin.NewROCatRec(&fin.CatRec{C:toCat("0:1")}),
-      fin.NewROCatRec(&fin.CatRec{C:toCat("1:4")}),
-      fin.NewROCatRec(&fin.CatRec{C:toCat("1:2")}),
-      fin.NewROCatRec(&fin.CatRec{C: toCat("2:1")})}
+  expected := []fin.CatRec {
+      {C:toCat("0:101")},
+      {C:toCat("0:1")},
+      {C:toCat("1:4")},
+      {C:toCat("1:2")},
+      {C: toCat("2:1")}}
   if !reflect.DeepEqual(expected, actual) {
     t.Errorf("Expected %v, got %v", expected, actual)
   }

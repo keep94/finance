@@ -38,7 +38,6 @@ func TestCompileAdvanceSearchSpec(t *testing.T) {
 }
 
 func runFilter(f functional.Filterer) int {
-  cpb := fin.CatPaymentBuilder{}
   result := 0
   if f.Filter(&fin.Entry{Name: "Name 1", Desc: "Desc 1"}) == nil {
     result++
@@ -52,7 +51,7 @@ func runFilter(f functional.Filterer) int {
   if f.Filter(&fin.Entry{
       Name: "Name 3",
       Desc: "Desc 3",
-      CatPayment: cpb.AddCatRec(&fin.CatRec{fin.NewCat("0:7"), 200, false}).Build()}) == nil {
+      CatPayment: fin.NewCatPayment(fin.NewCat("0:7"), 200, false, 0)}) == nil {
     result++
   }
   return result

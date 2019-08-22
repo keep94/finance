@@ -67,20 +67,19 @@ func TestReadPaypalCsv(t *testing.T) {
     return
   }
   entries := batch.Entries()
-  cp := fin.CatPaymentBuilder{}
   expectedEntries := []*fin.Entry {
       {
           Date: date_util.YMD(2015, 12, 6),
           Name: "TrackR, Inc",
-          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 8700}).Build()},
+          CatPayment: fin.NewCatPayment(fin.Expense, 8700, true, 3)},
       {
           Date: date_util.YMD(2015, 9, 5),
           Name: "Starbucks Coffee Company",
-          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 4810}).Build()},
+          CatPayment: fin.NewCatPayment(fin.Expense, 4810, true, 3)},
       {
           Date: date_util.YMD(2015, 9, 3),
           Name: "Disney Online",
-          CatPayment: cp.SetPaymentId(3).SetReconciled(true).AddCatRec(&fin.CatRec{A: 4641}).Build()}}
+          CatPayment: fin.NewCatPayment(fin.Expense, 4641, true, 3)}}
   if !reflect.DeepEqual(expectedEntries, entries) {
     t.Errorf("Expected %v, got %v", expectedEntries, entries)
   }

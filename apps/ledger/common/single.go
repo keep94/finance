@@ -94,9 +94,9 @@ func ToSingleEntryView(
   catrecs := cds.SortedCatRecs(entry.CatRecs())
   for idx, split := range result.Splits {
     if idx < len(catrecs) {
-      result.Set(split.CatParam(), catrecs[idx].Id().String())
-      result.Set(split.AmountParam(), fin.FormatUSD(catrecs[idx].Amount()))
-      if catrecs[idx].Reconciled() {
+      result.Set(split.CatParam(), catrecs[idx].C.String())
+      result.Set(split.AmountParam(), fin.FormatUSD(catrecs[idx].A))
+      if catrecs[idx].R {
         result.Set(split.ReconcileParam(), "on")
       }
     }
@@ -163,7 +163,7 @@ func EntryMutation(values url.Values) (mutation functional.Filterer, err error) 
       return
     }
     catrec = fin.CatRec{C: cat, A: amount, R: values.Get(split.ReconcileParam()) != ""}
-    cpb.AddCatRec(&catrec)
+    cpb.AddCatRec(catrec)
   }
   cp := cpb.Build()
   needReview := values.Get("need_review") != ""
