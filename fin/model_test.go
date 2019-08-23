@@ -286,9 +286,9 @@ func TestZeroCatPaymentsEqual(t *testing.T) {
 
 func TestCatRecs(t *testing.T) {
   cpb := CatPaymentBuilder{}
-  cpb.AddCatRec(CatRec{C: NewCat("0:1"), A: 1})
-  cpb.AddCatRec(CatRec{C: NewCat("0:2"), A: 1})
-  cpb.AddCatRec(CatRec{C: NewCat("0:3"), A: 1})
+  cpb.AddCatRec(CatRec{Cat: NewCat("0:1"), Amount: 1})
+  cpb.AddCatRec(CatRec{Cat: NewCat("0:2"), Amount: 1})
+  cpb.AddCatRec(CatRec{Cat: NewCat("0:3"), Amount: 1})
   cp := cpb.Build()
   catrecs := cp.CatRecs()
   if len(catrecs) != 3 {
@@ -296,8 +296,8 @@ func TestCatRecs(t *testing.T) {
   }
   for i := 0; i < 3; i++ {
     expected := Cat{Id: int64(i) +1, Type: ExpenseCat}
-    if catrecs[i].C != expected {
-      t.Errorf("Expected %v, got %v", expected, catrecs[i].C)
+    if catrecs[i].Cat != expected {
+      t.Errorf("Expected %v, got %v", expected, catrecs[i].Cat)
     }
   }
 }
@@ -385,13 +385,13 @@ func verifyParseUSDError(t *testing.T, s string) {
 
 func verifyCatRec(t *testing.T, cp *CatPayment, idx int, catId string, amount int64, reconciled bool) {
   catrec := cp.CatRecByIndex(idx)
-  if catrec.R != reconciled {
-    t.Errorf("Expected %v, got %v", reconciled, catrec.R)
+  if catrec.Reconciled != reconciled {
+    t.Errorf("Expected %v, got %v", reconciled, catrec.Reconciled)
   }
-  if catrec.A != amount {
-    t.Errorf("Expected %v, got %v", amount, catrec.A)
+  if catrec.Amount != amount {
+    t.Errorf("Expected %v, got %v", amount, catrec.Amount)
   }
-  if output := catrec.C.ToString(); output != catId {
+  if output := catrec.Cat.ToString(); output != catId {
     t.Errorf("Expected %v, got %v", catId, output)
   }
 }
@@ -421,8 +421,8 @@ func modifyCat(oldCat, newCat Cat, cp *CatPayment) {
   cpb.Set(cp).ClearCatRecs()
   oldCatRecs := cp.CatRecs()
   for _, oldCatRec := range oldCatRecs {
-    if oldCatRec.C == oldCat {
-      oldCatRec.C = newCat
+    if oldCatRec.Cat == oldCat {
+      oldCatRec.Cat = newCat
     }
     cpb.AddCatRec(oldCatRec)
   }

@@ -245,7 +245,7 @@ func verifyFilterer(t *testing.T, f functional.Filterer, e *fin.Entry, cat fin.C
   if !e.Reconciled() {
     t.Error("Expected it to be reconciled.")
   }
-  if output := e.CatRecByIndex(0).C; output != cat {
+  if output := e.CatRecByIndex(0).Cat; output != cat {
     t.Errorf("Expected %v, got %v", cat, output)
   }
   if output := e.Name; output != name {

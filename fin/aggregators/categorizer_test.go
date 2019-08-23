@@ -95,7 +95,7 @@ func TestByNameCategorizerCategorizeAccounts(t *testing.T) {
 func addToBuilder(builder *ByNameCategorizerBuilder, name string, cats ...fin.Cat) {
   cp := fin.CatPaymentBuilder{}
   for _, cat := range cats {
-    cp.AddCatRec(fin.CatRec{C: cat, A: 100})
+    cp.AddCatRec(fin.CatRec{Cat: cat, Amount: 100})
   }
   entry := fin.Entry{Name: name, CatPayment: cp.Build()}
   builder.Include(&entry)
@@ -119,8 +119,8 @@ func verifyMatch(t *testing.T, builder *ByNameCategorizerBuilder, name string, c
     return
   }
   catRec := entry.CatRecByIndex(0)
-  if catRec.C != cat {
-    t.Errorf("Expected %v, got %v", cat, catRec.C)
+  if catRec.Cat != cat {
+    t.Errorf("Expected %v, got %v", cat, catRec.Cat)
   }
 }
 

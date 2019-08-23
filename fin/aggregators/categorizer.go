@@ -104,6 +104,6 @@ func extractSingleCat(cp *fin.CatPayment) fin.Cat {
   if cp.CatRecCount() != 1 {
     return fin.Expense
   }
-  return cp.CatRecByIndex(0).C
+  return cp.CatRecByIndex(0).Cat
 }
 

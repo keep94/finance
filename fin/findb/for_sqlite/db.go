@@ -517,11 +517,11 @@ func unmarshall(ptr interface{}, cr *[]fin.CatRec, id *int64, reconciled *bool) 
       return err
     }
     if r > 0 {
-      (*cr)[i] = fin.CatRec{A: a, R: true}
+      (*cr)[i] = fin.CatRec{Amount: a, Reconciled: true}
     } else {
-      (*cr)[i] = fin.CatRec{A: a, R: false}
+      (*cr)[i] = fin.CatRec{Amount: a, Reconciled: false}
     }
-    (*cr)[i].C, err = fin.CatFromString(parts[3 * i])
+    (*cr)[i].Cat, err = fin.CatFromString(parts[3 * i])
     if err != nil {
       return err
     }
@@ -552,9 +552,9 @@ func marshall(cr []fin.CatRec, id int64, reconciled bool, ptr interface{}) {
   p := ptr.(*rawEntry)
   catStrs := make([]string, 3 * len(cr))
   for i := range cr {
-    catStrs[3 * i] = cr[i].C.ToString()
-    catStrs[3 * i + 1] = strconv.FormatInt(cr[i].A, 10)
-    if cr[i].R {
+    catStrs[3 * i] = cr[i].Cat.ToString()
+    catStrs[3 * i + 1] = strconv.FormatInt(cr[i].Amount, 10)
+    if cr[i].Reconciled {
       catStrs[3 * i + 2] = "1"
     } else {
       catStrs[3 *i + 2] = "0"

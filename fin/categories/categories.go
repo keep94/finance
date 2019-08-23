@@ -557,7 +557,7 @@ func (cds CatDetailStore) SortedCatRecs(catrecs []fin.CatRec) []fin.CatRec {
       catDetails: make(catDetails, count),
       catrecs: catrecs}
   for i := 0; i < count; i++ {
-    cdacr.catDetails[i] = cds.DetailById(catrecs[i].C)
+    cdacr.catDetails[i] = cds.DetailById(catrecs[i].Cat)
   }
   sort.Sort(&cdacr)
   return catrecs

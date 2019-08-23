@@ -552,8 +552,8 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
       t, store, date_util.YMD(2015, 9, 24),
       14, fin.Days, 5900, -1)
   var cpb fin.CatPaymentBuilder
-  cpb.AddCatRec(fin.CatRec{C: fin.NewCat("0:10"), A: 10000})
-  cpb.AddCatRec(fin.CatRec{C: fin.NewCat("2:2"), A: 7100})
+  cpb.AddCatRec(fin.CatRec{Cat: fin.NewCat("0:10"), Amount: 10000})
+  cpb.AddCatRec(fin.CatRec{Cat: fin.NewCat("2:2"), Amount: 7100})
   cpb.SetPaymentId(1)
   cp := cpb.Build()
   valentinesDayId := addRecurringEntryWithPeriodAndCatPayment(
@@ -752,14 +752,18 @@ func createListEntries(t *testing.T, store findb.DoEntryChangesRunner) {
       Date: date_util.YMD(2012, 10, 15),
       Status: fin.Reviewed,
       CatPayment: cpb.AddCatRec(
-          fin.CatRec{C: fin.NewCat("2:1"), A: 200, R: true}).SetPaymentId(
-          2).Build()}
+          fin.CatRec{
+              Cat: fin.NewCat("2:1"),
+              Amount: 200,
+              Reconciled: true}).SetPaymentId(2).Build()}
   entry3 := fin.Entry{
       Date: date_util.YMD(2012, 11, 12),
       Status: fin.NotReviewed,
       CatPayment: cpb.AddCatRec(
-          fin.CatRec{C: fin.NewCat("0:7"), A: 400, R: true}).SetPaymentId(
-          2).Build()}
+          fin.CatRec{
+              Cat: fin.NewCat("0:7"),
+              Amount: 400,
+              Reconciled: true}).SetPaymentId(2).Build()}
   entry4 := fin.Entry{
       Date: date_util.YMD(2011, 11, 12),
       Status: fin.NotReviewed}

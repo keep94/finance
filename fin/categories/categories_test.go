@@ -300,18 +300,18 @@ func TestActiveAccountDetails(t *testing.T) {
 func TestSortedCatRecs(t *testing.T) {
   cds := createCatDetailStore()
   catrecs := []fin.CatRec{
-      {C: toCat("1:2")},
-      {C: toCat("1:4")},
-      {C: toCat("2:1")},
-      {C: toCat("0:101")},
-      {C: toCat("0:1")}}
+      {Cat: toCat("1:2")},
+      {Cat: toCat("1:4")},
+      {Cat: toCat("2:1")},
+      {Cat: toCat("0:101")},
+      {Cat: toCat("0:1")}}
   actual := cds.SortedCatRecs(catrecs)
   expected := []fin.CatRec {
-      {C:toCat("0:101")},
-      {C:toCat("0:1")},
-      {C:toCat("1:4")},
-      {C:toCat("1:2")},
-      {C: toCat("2:1")}}
+      {Cat:toCat("0:101")},
+      {Cat:toCat("0:1")},
+      {Cat:toCat("1:4")},
+      {Cat:toCat("1:2")},
+      {Cat: toCat("2:1")}}
   if !reflect.DeepEqual(expected, actual) {
     t.Errorf("Expected %v, got %v", expected, actual)
   }

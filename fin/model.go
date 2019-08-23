@@ -106,13 +106,14 @@ func (c CatSet) AddSet(rhs CatSet) CatSet {
 
 // CatRec specifies a category, amount, and reconciled flag.
 type CatRec struct {
-  // C is the category.
-  C Cat
-  // A is amount in one cent increments. Positive means expense; negative
+  // Cat is the category.
+  Cat Cat
+  // Amount is amount in one cent increments. Positive means expense; negative
   // means income.
-  A int64
-  // R is reconcile flag, only applicable for categories of AccountCat type.
-  R bool
+  Amount int64
+  // Reconciled is reconcile flag, only applicable for categories of
+  // AccountCat type.
+  Reconciled bool
 }
 
 func (c *CatRec) String() string {
@@ -157,7 +158,7 @@ func NewCatPayment(cat Cat, amount int64, reconciled bool, paymentId int64) CatP
     panic("cat cannot match paymentId.")
   }
   return CatPayment{
-      cr: []CatRec{{C: cat, A: amount}},
+      cr: []CatRec{{Cat: cat, Amount: amount}},
       id: paymentId,
       r: reconciled}
 }
@@ -206,10 +207,10 @@ func (c *CatPayment) Reconcile(id int64) bool {
   }
   pc := Cat{Id: id, Type: AccountCat}
   for i := range c.cr {
-    if c.cr[i].C == pc {
+    if c.cr[i].Cat == pc {
       ncr := make([]CatRec, len(c.cr))
       copy(ncr, c.cr)
-      ncr[i].R = true
+      ncr[i].Reconciled = true
       c.cr = ncr
       return true
     }
@@ -222,7 +223,7 @@ func (c *CatPayment) Reconcile(id int64) bool {
 func (c *CatPayment) Total() int64 {
   var result int64 = 0
   for i := range c.cr {
-    result -= c.cr[i].A
+    result -= c.cr[i].Amount
   }
   return result
 }
@@ -237,13 +238,13 @@ func (c *CatPayment) WithPayment(id int64) bool {
   }
   pc := Cat{Id: id, Type: AccountCat}
   for i := range c.cr {
-    if c.cr[i].C == pc {
+    if c.cr[i].Cat == pc {
       ncr := make([]CatRec, 1)
-      ncr[0].C = Cat{Id: c.id, Type: AccountCat}
-      ncr[0].A = -c.cr[i].A
-      ncr[0].R = c.r
-      c.id = c.cr[i].C.Id
-      c.r = c.cr[i].R
+      ncr[0].Cat = Cat{Id: c.id, Type: AccountCat}
+      ncr[0].Amount = -c.cr[i].Amount
+      ncr[0].Reconciled = c.r
+      c.id = c.cr[i].Cat.Id
+      c.r = c.cr[i].Reconciled
       c.cr = ncr
       return true
     }
@@ -258,7 +259,7 @@ func (c *CatPayment) WithCat(f CatFilter) bool {
   idxs := make([]int, len(c.cr))
   idxslen := 0
   for i := range c.cr {
-    if f(c.cr[i].C) {
+    if f(c.cr[i].Cat) {
       idxs[idxslen] = i
       idxslen++
     }
@@ -332,13 +333,13 @@ func (c *CatPaymentBuilder) Build() CatPayment {
 // AddCatRec Adds a CatRec. It merges CatRecs having the same category.
 func (c *CatPaymentBuilder) AddCatRec(cr CatRec) *CatPaymentBuilder {
   c.initialize()
-  ocr := c.m[cr.C]
-  ocr.C = cr.C
-  ocr.A += cr.A
-  if cr.R {
-    ocr.R = true
+  ocr := c.m[cr.Cat]
+  ocr.Cat = cr.Cat
+  ocr.Amount += cr.Amount
+  if cr.Reconciled {
+    ocr.Reconciled = true
   }
-  c.m[cr.C] = ocr
+  c.m[cr.Cat] = ocr
   return c
 }
 
@@ -497,10 +498,10 @@ func (a AccountDeltas) add(catPayment *CatPayment, multiplier int) {
   var total int64
   for i := range catPayment.cr {
     catrec := &catPayment.cr[i]
-    if catrec.C.Type == AccountCat {
-      a._add(catrec.C.Id, catrec.A, catrec.R, multiplier)
+    if catrec.Cat.Type == AccountCat {
+      a._add(catrec.Cat.Id, catrec.Amount, catrec.Reconciled, multiplier)
     }
-    total -= catrec.A
+    total -= catrec.Amount
   }
   a._add(catPayment.id, total, catPayment.r, multiplier)
 }
@@ -523,8 +524,8 @@ type CatTotals map[Cat]int64
 func (c CatTotals) Include(catPayment *CatPayment) {
   for i := range catPayment.cr {
     catrec := &catPayment.cr[i]
-    if catrec.C.Type != AccountCat {
-      c[catrec.C] += catrec.A
+    if catrec.Cat.Type != AccountCat {
+      c[catrec.Cat] += catrec.Amount
     }
   }
 }
@@ -535,8 +536,8 @@ type AccountSet map[int64]bool
 func (a AccountSet) Include(catPayment *CatPayment) {
   for i := range catPayment.cr {
     catrec := &catPayment.cr[i]
-    if catrec.C.Type == AccountCat {
-      a[catrec.C.Id] = true
+    if catrec.Cat.Type == AccountCat {
+      a[catrec.Cat.Id] = true
     }
   }
   a[catPayment.id] = true
