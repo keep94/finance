@@ -116,10 +116,6 @@ type CatRec struct {
   Reconciled bool
 }
 
-func (c *CatRec) String() string {
-  return fmt.Sprintf("%v", *c)
-}
-
 // Unmarshaller builds components of CatPayment from database columns.
 // ptr represents database columns; cr is where the new CatRec slice is
 // to be stored; id is where type payment ID is to be stored; r is where
