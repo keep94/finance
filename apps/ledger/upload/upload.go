@@ -13,7 +13,7 @@ import (
   "github.com/keep94/finance/fin/autoimport/reconcile"
   "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "html/template"
   "io"
   "net/http"
@@ -180,11 +180,13 @@ func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctI
       categorizerBuilder := aggregators.NewByNameCategorizerBuilder(4, 2)
       // If this fails, we can carry on. We just won't get autocategorization
       store.Entries(
-          nil, nil, functional.ModifyConsumer(
+          nil,
+          nil,
+          goconsume.Slice(
               consumers.FromEntryAggregator(categorizerBuilder),
-              func(s functional.Stream) functional.Stream {
-                return functional.Slice(s, 0, kAutoCategorizeLookBack)
-              }))
+              0,
+              kAutoCategorizeLookBack),
+      )
       categorizer := categorizerBuilder.Build()
       err := h.Doer.Do(func(t db.Transaction) (err error) {
         batch, err = batch.SkipProcessed(t)

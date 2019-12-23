@@ -10,7 +10,7 @@ import (
   "github.com/keep94/finance/fin/findb"
   "github.com/keep94/finance/fin/findb/for_sqlite"
   "github.com/keep94/finance/fin/findb/sqlite_setup"
-  "github.com/keep94/gofunctional3/consume"
+  "github.com/keep94/goconsume"
   "github.com/keep94/gosqlite/sqlite"
   "os"
   "strings"
@@ -229,7 +229,7 @@ func getPermission(perm string) (fin.Permission, bool) {
 
 func listUsers(store findb.UsersRunner) bool {
   var users []*fin.User
-  err := store.Users(nil, consume.AppendPtrsTo(&users, nil))
+  err := store.Users(nil, goconsume.AppendPtrsTo(&users))
   if err != nil {
     fmt.Printf("An error happened listing users - %v\n", err)
     return false

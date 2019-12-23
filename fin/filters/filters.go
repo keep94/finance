@@ -4,7 +4,7 @@ package filters
 import (
   "github.com/keep94/appcommon/str_util"
   "github.com/keep94/finance/fin"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "strings"
 )
 
@@ -25,68 +25,48 @@ type AdvanceSearchSpec struct {
 
 // CompileAdvanceSearchSpec compiles a search specification into a
 // functional.Filterer object.
-func CompileAdvanceSearchSpec(spec *AdvanceSearchSpec) functional.Filterer {
-  filters := []functional.Filterer{}
+func CompileAdvanceSearchSpec(spec *AdvanceSearchSpec) goconsume.FilterFunc {
+  var filters []goconsume.FilterFunc
   if spec.CF != nil {
-    filters = append(filters, byCatFilterer{spec.CF})
+    filters = append(filters, byCatFilterer(spec.CF))
   }
   if spec.AF != nil {
-    filters = append(filters, byAmountFilterer{spec.AF})
+    filters = append(filters, byAmountFilterer(spec.AF))
   }
   if spec.Name != "" {
-    filters = append(filters, byNameFilterer{str_util.Normalize(spec.Name)})
+    filters = append(filters, byNameFilterer(str_util.Normalize(spec.Name)))
   }
   if spec.Desc != "" {
-    filters = append(filters, byDescFilterer{str_util.Normalize(spec.Desc)})
+    filters = append(filters, byDescFilterer(str_util.Normalize(spec.Desc)))
   }
-  return functional.All(filters...)
+  return goconsume.All(filters...)
 }
 
-type byCatFilterer struct {
-  f fin.CatFilter
-}
-
-func (cf byCatFilterer) Filter(ptr interface{}) error {
-  p := ptr.(*fin.Entry)
-  if !p.WithCat(cf.f) {
-    return functional.Skipped
+func byCatFilterer(f fin.CatFilter) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
+    p := ptr.(*fin.Entry)
+    return p.WithCat(f)
   }
-  return nil
 }
 
-type byAmountFilterer struct {
-  f AmountFilter
-}
-
-func (af byAmountFilterer) Filter(ptr interface{}) error {
-  p := ptr.(*fin.Entry)
-  if !af.f(p.Total()) {
-    return functional.Skipped
+func byAmountFilterer(f AmountFilter) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
+    p := ptr.(*fin.Entry)
+    return f(p.Total())
   }
-  return nil
 }
 
-type byNameFilterer struct {
-  name string
-}
-
-func (nf byNameFilterer) Filter(ptr interface{}) error {
-  p := ptr.(*fin.Entry)
-  if strings.Index(str_util.Normalize(p.Name), nf.name) == -1 {
-    return functional.Skipped
+func byNameFilterer(name string) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
+    p := ptr.(*fin.Entry)
+    return strings.Index(str_util.Normalize(p.Name), name) != -1
   }
-  return nil
 }
 
-type byDescFilterer struct {
-  desc string
-}
-
-func (df byDescFilterer) Filter(ptr interface{}) error {
-  p := ptr.(*fin.Entry)
-  if strings.Index(str_util.Normalize(p.Desc), df.desc) == -1 {
-    return functional.Skipped
+func byDescFilterer(desc string) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
+    p := ptr.(*fin.Entry)
+    return strings.Index(str_util.Normalize(p.Desc), desc) != -1
   }
-  return nil
 }
 

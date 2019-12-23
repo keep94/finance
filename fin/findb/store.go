@@ -5,8 +5,7 @@ import (
   "errors"
   "github.com/keep94/appcommon/db"
   "github.com/keep94/finance/fin"
-  "github.com/keep94/gofunctional3/consume"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "time"
 )
 
@@ -24,7 +23,7 @@ type AccountByIdRunner interface {
 
 type AccountsRunner interface {
   // Accounts fetches all accounts.
-  Accounts(t db.Transaction, consumer functional.Consumer) error
+  Accounts(t db.Transaction, consumer goconsume.Consumer) error
 }
 
 type ActiveAccountsRunner interface {
@@ -64,7 +63,7 @@ type EntriesRunner interface {
   // options is additional options for getting entries, may be nil;
   // consumer consumes the Stream of fetched entries.
   Entries(t db.Transaction, options *EntryListOptions,
-      consumer functional.Consumer) error
+      consumer goconsume.Consumer) error
 }
 
 type EntriesByAccountIdRunner interface {
@@ -73,18 +72,12 @@ type EntriesByAccountIdRunner interface {
   // Account object is stored; consumer consumes the Stream of EntryBalance
   // values.
   EntriesByAccountId(t db.Transaction, acctId int64,
-      account *fin.Account, consumer functional.Consumer) error
+      account *fin.Account, consumer goconsume.Consumer) error
 }
 
 type EntryByIdRunner interface {
   // EntryById fetches an Entry by id.
   EntryById(t db.Transaction, id int64, entry *fin.Entry) error
-}
-
-type EntryByIdWithEtagRunner interface {
-  // EntryByIdWithEtag fetches an Entry by id along with its etag.
-  EntryByIdWithEtag(
-      t db.Transaction, id int64, entry *fin.EntryWithEtag) error
 }
 
 type UnreconciledEntriesRunner interface {
@@ -93,7 +86,7 @@ type UnreconciledEntriesRunner interface {
   // acctId is the account ID; account, which can be nil, is where
   // Account object is stored; consumer consumes the Stream of Entry values
   UnreconciledEntries(t db.Transaction, acctId int64,
-      account *fin.Account, consumer functional.Consumer) error
+      account *fin.Account, consumer goconsume.Consumer) error
 }
 
 type AddRecurringEntryRunner interface {
@@ -112,17 +105,10 @@ type RecurringEntryByIdRunner interface {
       t db.Transaction, id int64, entry *fin.RecurringEntry) error
 }
 
-type RecurringEntryByIdWithEtagRunner interface {
-  // RecurringEntryByIdWithEtag gets a recurring entry by id along with its
-  // etag.
-  RecurringEntryByIdWithEtag(
-      t db.Transaction, id int64, entry *fin.RecurringEntryWithEtag) error
-}
-
 type RecurringEntriesRunner interface {
   // RecurringEntries gets all the recurring entries sorted by date
   // in ascending order.
-  RecurringEntries(t db.Transaction, consumer functional.Consumer) error
+  RecurringEntries(t db.Transaction, consumer goconsume.Consumer) error
 }
 
 type RemoveRecurringEntryByIdRunner interface {
@@ -152,7 +138,7 @@ type UserByNameRunner interface {
 
 type UsersRunner interface {
   //Users gets all the users sorted by user name.
-  Users(t db.Transaction, consumer functional.Consumer) error
+  Users(t db.Transaction, consumer goconsume.Consumer) error
 }
 
 type RemoveUserByNameRunner interface {
@@ -165,7 +151,7 @@ type EntryChanges struct {
   // Adds is entries to add
   Adds []*fin.Entry
   // The key is the entry id; the value does the update in-place.
-  Updates map[int64]functional.Filterer
+  Updates map[int64]goconsume.FilterFunc
   // Deletes is the ids of the entries to delete.
   Deletes []int64
   // Etags contains the etags of the entries being updated.
@@ -196,7 +182,7 @@ func (n NoPermissionStore) AccountById(
 }
 
 func (n NoPermissionStore) Accounts(
-    t db.Transaction, consumer functional.Consumer) error {
+    t db.Transaction, consumer goconsume.Consumer) error {
   return NoPermission
 }
 
@@ -231,12 +217,12 @@ func (n NoPermissionStore) DoEntryChanges(
 }
 
 func (n NoPermissionStore) Entries( t db.Transaction, options *EntryListOptions,
-    consumer functional.Consumer) error {
+    consumer goconsume.Consumer) error {
   return NoPermission
 }
 
 func (n NoPermissionStore) EntriesByAccountId(t db.Transaction, acctId int64,
-    account *fin.Account, consumer functional.Consumer) error {
+    account *fin.Account, consumer goconsume.Consumer) error {
   return NoPermission
 }
 
@@ -245,14 +231,9 @@ func (n NoPermissionStore) EntryById(
   return NoPermission
 }
 
-func (n NoPermissionStore) EntryByIdWithEtag(
-    t db.Transaction, id int64, entry *fin.EntryWithEtag) error {
-  return NoPermission
-}
-
 func (n NoPermissionStore) UnreconciledEntries(
     t db.Transaction, acctId int64, account *fin.Account,
-    consumer functional.Consumer) error {
+    consumer goconsume.Consumer) error {
   return NoPermission
 }
 
@@ -271,13 +252,8 @@ func (n NoPermissionStore) RecurringEntryById(
   return NoPermission
 }
 
-func (n NoPermissionStore) RecurringEntryByIdWithEtag(
-    t db.Transaction, id int64, entry *fin.RecurringEntryWithEtag) error {
-  return NoPermission
-}
-
 func (n NoPermissionStore) RecurringEntries(
-    t db.Transaction, consumer functional.Consumer) error {
+    t db.Transaction, consumer goconsume.Consumer) error {
   return NoPermission
 }
 
@@ -302,7 +278,7 @@ func (n NoPermissionStore) UserByName(t db.Transaction, name string, user *fin.U
   return NoPermission
 }
 
-func (n NoPermissionStore) Users(t db.Transaction, consumer functional.Consumer) error {
+func (n NoPermissionStore) Users(t db.Transaction, consumer goconsume.Consumer) error {
   return NoPermission
 }
 
@@ -480,9 +456,9 @@ func applyRecurringEntriesDryRun(
         recurringEntriesToUpdate []*fin.RecurringEntry,
         entriesToAdd []*fin.Entry,
         err error) {
-  consumer := consume.AppendPtrsTo(&recurringEntriesToUpdate, nil)
+  consumer := goconsume.AppendPtrsTo(&recurringEntriesToUpdate)
   if acctId != 0 {
-    consumer = functional.FilterConsumer(consumer, accountFilter(acctId))
+    consumer = goconsume.Filter(consumer, accountFilter(acctId))
   }
   if err = store.RecurringEntries(t, consumer); err != nil {
     return
@@ -498,13 +474,10 @@ func applyRecurringEntriesDryRun(
   return
 }
 
-func accountFilter(acctId int64) functional.Filterer {
-  return functional.NewFilterer(func(ptr interface{}) error {
+func accountFilter(acctId int64) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
     re := ptr.(*fin.RecurringEntry)
     cp := re.CatPayment
-    if !cp.WithPayment(acctId) {
-      return functional.Skipped
-    }
-    return nil
-  })
+    return cp.WithPayment(acctId)
+  }
 }

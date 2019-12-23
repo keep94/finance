@@ -10,8 +10,7 @@ import (
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/consume"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "strconv"
@@ -126,17 +125,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   }
   cds, _ := h.Cdc.Get(nil)
   var entries []*fin.RecurringEntry
-  consumer := consume.AppendPtrsTo(&entries, nil)
+  consumer := goconsume.AppendPtrsTo(&entries)
   if acctId > 0 {
-    consumer = functional.FilterConsumer(
+    consumer = goconsume.ModFilter(
         consumer,
-        functional.NewFilterer(func(ptr interface{}) error {
+        func(ptr interface{}) bool {
           p := ptr.(*fin.RecurringEntry)
-          if !p.WithPayment(acctId) {
-            return functional.Skipped
-          }
-          return nil
-        }))
+          return p.WithPayment(acctId)
+        },
+        (*fin.RecurringEntry)(nil))
   }
   err := store.RecurringEntries(nil, consumer)
   if err != nil {

@@ -31,12 +31,6 @@ func TestUpdateEntry(t *testing.T) {
   newEntryAccountFixture(db).UpdateEntry(t, New(db))
 }
 
-func TestUpdateEntryError(t *testing.T) {
-  db := openDb(t)
-  defer closeDb(t, db)
-  newEntryAccountFixture(db).UpdateEntryError(t, New(db))
-}
-
 func TestUpdateEntrySkipped(t *testing.T) {
   db := openDb(t)
   defer closeDb(t, db)
@@ -125,12 +119,6 @@ func TestConcurrentUpdateSkipped(t *testing.T) {
   db := openDb(t)
   defer closeDb(t, db)
   newEntryAccountFixture(db).ConcurrentUpdateSkipped(t, New(db))
-}
-
-func TestConcurrentUpdateError(t *testing.T) {
-  db := openDb(t)
-  defer closeDb(t, db)
-  newEntryAccountFixture(db).ConcurrentUpdateError(t, New(db))
 }
 
 func TestApplyRecurringEntries(t *testing.T) {

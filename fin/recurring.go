@@ -140,21 +140,6 @@ func (r *RecurringEntry) Advance(
   return
 }
 
-// Read an RecurringEntryWithEtag instead of a RecurringEntry to collect
-// the recurring entry's etag
-type RecurringEntryWithEtag struct {
-  RecurringEntry
-  Etag uint64
-}
-
-func (r *RecurringEntryWithEtag) GetPtr() interface{} {
-  return &r.RecurringEntry
-}
-
-func (r *RecurringEntryWithEtag) SetEtag(etag uint64) {
-  r.Etag = etag
-}
-
 func withDayOfMonth(date time.Time, dayOfMonth int) time.Time {
   return time.Date(
       date.Year(), date.Month(), dayOfMonth, date.Hour(), date.Minute(),

@@ -7,7 +7,7 @@ import (
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/autoimport/reconcile/match"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "sort"
   "time"
 )
@@ -96,9 +96,10 @@ func GetChanges(reconciled []*fin.Entry) *findb.EntryChanges {
       existingIdx--
     }
   }
-  updates := make(map[int64]functional.Filterer, len(entries) - 1 - existingIdx)
+  updates := make(
+      map[int64]goconsume.FilterFunc, len(entries) - 1 - existingIdx)
   for idx := len(entries) - 1; idx > existingIdx; idx-- {
-    updates[entries[idx].Id] = filterer{entries[idx]}
+    updates[entries[idx].Id] = reconciler(entries[idx])
   }
   return &findb.EntryChanges{Adds: entries[:newIdx], Updates: updates}
 }
@@ -117,23 +118,22 @@ func (b byDateDesc) Swap(i, j int) {
   b[i], b[j] = b[j], b[i]
 }
 
-type filterer struct {
-  *fin.Entry
-}
 
-func (f filterer) Filter(ptr interface{}) error {
-  p := ptr.(*fin.Entry)
-  if p.Status != fin.Reviewed {
-    p.Name = f.Name
-    if p.CatRecCount() == 1 && p.CatRecByIndex(0).Cat == fin.Expense {
-      p.CatPayment = f.CatPayment
+func reconciler(f *fin.Entry) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
+    p := ptr.(*fin.Entry)
+    if p.Status != fin.Reviewed {
+      p.Name = f.Name
+      if p.CatRecCount() == 1 && p.CatRecByIndex(0).Cat == fin.Expense {
+        p.CatPayment = f.CatPayment
+      } else {
+        p.Reconcile(f.PaymentId())
+      }
     } else {
       p.Reconcile(f.PaymentId())
     }
-  } else {
-    p.Reconcile(f.PaymentId())
+    return true
   }
-  return nil
 }
 
 func reconcile(

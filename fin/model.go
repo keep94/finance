@@ -5,7 +5,7 @@ import (
   "errors"
   "fmt"
   "github.com/keep94/appcommon/passwords"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "math"
   "sort"
   "strconv"
@@ -398,24 +398,11 @@ type Entry struct {
   CheckNo string
   CatPayment
   Status ReviewStatus
+  Etag uint64
 }
 
 func (e *Entry) String() string {
   return fmt.Sprintf("%v", *e)
-}
-
-// Read an EntryWithEtag instead of an Entry to collect the entry's etag
-type EntryWithEtag struct {
-  Entry
-  Etag uint64
-}
-
-func (e *EntryWithEtag) GetPtr() interface{} {
-  return &e.Entry
-}
-
-func (e *EntryWithEtag) SetEtag(etag uint64) {
-  e.Etag = etag
 }
 
 // EntryBalance is an Entry with an ending balance
@@ -539,22 +526,25 @@ func (a AccountSet) Include(catPayment *CatPayment) {
   a[catPayment.id] = true
 }
 
-// Stream of EntryBalance adding ending balance to a Stream of Entry.
-type AddBalanceStream struct {
+//  Consumer of Entry passing onto consumer of EntryBalance.
+type AddBalanceConsumer struct {
   // ending balance
   Balance int64
   // original Stream of Entry
-  functional.Stream
+  BalanceConsumer goconsume.Consumer
+  entryBalance EntryBalance
 }
 
-func (a *AddBalanceStream) Next(ptr interface{}) error {
-  p := ptr.(*EntryBalance)
-  err := a.Stream.Next(&p.Entry)
-  if err == nil {
-    p.Balance = a.Balance
-    a.Balance -= p.Total()
-  }
-  return err
+func (c *AddBalanceConsumer) CanConsume() bool {
+  return c.BalanceConsumer.CanConsume()
+}
+
+func (c *AddBalanceConsumer) Consume(ptr interface{}) {
+  p := ptr.(*Entry)
+  c.entryBalance.Entry = *p
+  c.entryBalance.Balance = c.Balance
+  c.Balance -= p.Total()
+  c.BalanceConsumer.Consume(&c.entryBalance)
 }
 
 // Permission represents a user's permission to the database

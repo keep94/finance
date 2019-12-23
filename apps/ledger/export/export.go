@@ -12,7 +12,7 @@ import (
   "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "net/url"
@@ -120,38 +120,28 @@ func (h *Handler) doPost(
   columns[3] = "Desc"
   columns[4] = "Amount"
   csvWriter.Write(columns[:])
-  var consumer functional.Consumer
-  consumer = functional.ConsumerFunc(func(s functional.Stream) error {
-    var entry fin.Entry
-    var err error
-    var count int
-    for err = s.Next(&entry); err == nil; err = s.Next(&entry) {
-      columns[0] = entry.Date.Format("1/2/2006")
-      columns[1] = entry.CheckNo
-      columns[2] = entry.Name
-      columns[3] = entry.Desc
-      columns[4] = fin.FormatUSD(-entry.Total())
-      csvWriter.Write(columns[:])
-      count++
-      if count > kMaxLines {
-        return errors.New("File too big. Try a smaller date range.")
-      }
-    }
-    if err != functional.Done {
-      return err
-    }
-    return nil
+  var consumer goconsume.Consumer
+  consumer = goconsume.ConsumerFunc(func(ptr interface{}) {
+    entry := ptr.(*fin.Entry)
+    columns[0] = entry.Date.Format("1/2/2006")
+    columns[1] = entry.CheckNo
+    columns[2] = entry.Name
+    columns[3] = entry.Desc
+    columns[4] = fin.FormatUSD(-entry.Total())
+    csvWriter.Write(columns[:])
   })
-  consumer = functional.FilterConsumer(
-      consumer,
-      functional.NewFilterer(func(ptr interface{}) error {
-        p := ptr.(*fin.Entry)
-        if !p.WithPayment(acctId) {
-          return functional.Skipped
-        }
-        return nil
-      }))
+  consumer = goconsume.Slice(consumer, 0, kMaxLines + 1)
+  consumer = goconsume.ModFilter(
+    consumer,
+    func(ptr interface{}) bool {
+      p := ptr.(*fin.Entry)
+      return p.WithPayment(acctId)
+    },
+    (*fin.Entry)(nil))
   err = h.Store.Entries(nil, elo, consumer)
+  if err == nil && !consumer.CanConsume() {
+    err = errors.New("File too big. Try a smaller date range")
+  }
   if err != nil {
     http_util.WriteTemplate(
         w,

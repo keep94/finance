@@ -2,7 +2,7 @@ package filters
 
 import (
   "github.com/keep94/finance/fin"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "testing"
 )
 
@@ -37,21 +37,21 @@ func TestCompileAdvanceSearchSpec(t *testing.T) {
   }
 }
 
-func runFilter(f functional.Filterer) int {
+func runFilter(f goconsume.FilterFunc) int {
   result := 0
-  if f.Filter(&fin.Entry{Name: "Name 1", Desc: "Desc 1"}) == nil {
+  if f(&fin.Entry{Name: "Name 1", Desc: "Desc 1"}){
     result++
   }
-  if f.Filter(&fin.Entry{Name: "Name 2", Desc: "Other"}) == nil {
+  if f(&fin.Entry{Name: "Name 2", Desc: "Other"}) {
     result++
   }
-  if f.Filter(&fin.Entry{Name: "Other", Desc: "Other"}) == nil {
+  if f(&fin.Entry{Name: "Other", Desc: "Other"}) {
     result++
   }
-  if f.Filter(&fin.Entry{
+  if f(&fin.Entry{
       Name: "Name 3",
       Desc: "Desc 3",
-      CatPayment: fin.NewCatPayment(fin.NewCat("0:7"), 200, false, 0)}) == nil {
+      CatPayment: fin.NewCatPayment(fin.NewCat("0:7"), 200, false, 0)}) {
     result++
   }
   return result

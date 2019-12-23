@@ -13,7 +13,7 @@ import (
   "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/filters"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "net/url"
@@ -235,12 +235,13 @@ func (h *Handler) singleCat(
   // Only to see what the child categories are
   ct := make(fin.CatTotals)
   totals := createByPeriodTotaler(start, end, isYearly)
-  cr := functional.FilterConsumer(
-      consumers.Compose(
+  cr := goconsume.ModFilter(
+      goconsume.Compose(
           consumers.FromCatPaymentAggregator(ct),
           consumers.FromEntryAggregator(totals)),
       filters.CompileAdvanceSearchSpec(
-          &filters.AdvanceSearchSpec{CF: cds.Filter(cat, !topOnly)}))
+          &filters.AdvanceSearchSpec{CF: cds.Filter(cat, !topOnly)}),
+      (*fin.Entry)(nil))
   elo := findb.EntryListOptions{
       Start: &start,
       End: &end}
@@ -295,16 +296,18 @@ func (h *Handler) allCats(
   ct := make(fin.CatTotals)
   expenseTotals := createByPeriodTotaler(start, end, isYearly)
   incomeTotals := createByPeriodTotaler(start, end, isYearly)
-  cr := consumers.Compose(
+  cr := goconsume.Compose(
       consumers.FromCatPaymentAggregator(ct),
-      functional.FilterConsumer(
+      goconsume.ModFilter(
           consumers.FromEntryAggregator(expenseTotals),
           filters.CompileAdvanceSearchSpec(
-              &filters.AdvanceSearchSpec{CF: cds.Filter(fin.Expense, true)})),
-      functional.FilterConsumer(
+              &filters.AdvanceSearchSpec{CF: cds.Filter(fin.Expense, true)}),
+          (*fin.Entry)(nil)),
+      goconsume.ModFilter(
           consumers.FromEntryAggregator(incomeTotals),
           filters.CompileAdvanceSearchSpec(
-              &filters.AdvanceSearchSpec{CF: cds.Filter(fin.Income, true)})))
+              &filters.AdvanceSearchSpec{CF: cds.Filter(fin.Income, true)}),
+          (*fin.Entry)(nil)))
   elo := findb.EntryListOptions{
       Start: &start,
       End: &end}

@@ -7,9 +7,8 @@ import (
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "net/url"
@@ -164,7 +163,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     } else {
       _, isFinal := r.Form["final"]
       ids := r.Form["id"]
-      updates := make(map[int64]functional.Filterer, len(ids))
+      updates := make(map[int64]goconsume.FilterFunc, len(ids))
       etags := make(map[int64]uint64, len(ids))
       for _, idStr := range ids {
         id, _ := strconv.ParseInt(idStr, 10, 64)
@@ -189,11 +188,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       return
     }
   }
-  buffer := consumers.NewEntryBufferWithEtags(h.PageSize)
+  entries := make([]fin.Entry, 0, h.PageSize)
+  consumer := goconsume.AppendTo(&entries)
+  consumer = goconsume.Slice(consumer, 0, h.PageSize)
   cds := categories.CatDetailStore{}
   err := h.Doer.Do(func(t db.Transaction) error {
     cds, _ = cache.Get(t)
-    return store.Entries(t, &findb.EntryListOptions{Unreviewed: true}, buffer)
+    return store.Entries(t, &findb.EntryListOptions{Unreviewed: true}, consumer)
   })
   if err != nil {
     http_util.ReportError(w, "Error reading database.", err)
@@ -206,7 +207,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           http_util.Values{r.Form},
           common.CatDisplayer{cds},
           common.EntryLinker{r.URL},
-          buffer.EntriesWithEtags(),
+          entries,
           common.NewXsrfToken(r, kUnreviewed),
           message})
 }
@@ -215,7 +216,7 @@ type view struct {
   http_util.Values
   common.CatDisplayer
   common.EntryLinker
-  Entries []fin.EntryWithEtag
+  Entries []fin.Entry
   Xsrf string
   ErrorMessage string
 }
@@ -224,7 +225,7 @@ func (v *view) InProgress(status fin.ReviewStatus) bool {
   return status == fin.ReviewInProgress
 }
 
-func (v *view) IdsAsJsArray(entries []fin.EntryWithEtag) template.JS {
+func (v *view) IdsAsJsArray(entries []fin.Entry) template.JS {
   ids := make([]string, len(entries))
   for i := range entries {
     ids[i] = strconv.FormatInt(entries[i].Id, 10)
@@ -232,7 +233,7 @@ func (v *view) IdsAsJsArray(entries []fin.EntryWithEtag) template.JS {
   return template.JS(fmt.Sprintf("[%s]", strings.Join(ids, ", ")))
 }
 
-func createMutation(values url.Values, id int64, isFinal bool) functional.Filterer {
+func createMutation(values url.Values, id int64, isFinal bool) goconsume.FilterFunc {
   cat, caterr := fin.CatFromString(values.Get(fmt.Sprintf("cat_%d", id)))
   desc := values.Get(fmt.Sprintf("desc_%d", id))
   var status fin.ReviewStatus = fin.NotReviewed
@@ -243,14 +244,14 @@ func createMutation(values url.Values, id int64, isFinal bool) functional.Filter
       status = fin.ReviewInProgress
     }
   }
-  return functional.NewFilterer(func(ptr interface{}) error {
+  return func(ptr interface{}) bool {
     p := ptr.(*fin.Entry)
     p.Desc = desc
     if caterr != nil || p.SetSingleCat(cat) {
       p.Status = status
     }
-    return nil
-  })
+    return true
+  }
 }
 
 func init() {

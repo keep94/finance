@@ -9,7 +9,7 @@ import (
   for_csqlite "github.com/keep94/finance/fin/categories/categoriesdb/for_sqlite"
   "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/findb/for_sqlite"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "github.com/keep94/gosqlite/sqlite"
 )
 
@@ -41,9 +41,7 @@ func main() {
     err := store.Entries(
         t,
         nil,
-        functional.CompositeConsumer(
-            new(fin.Entry),
-            nil,
+        goconsume.Compose(
             consumers.FromCatPaymentAggregator(totals),
             consumers.FromCatPaymentAggregator(allAccounts)))
     if err != nil {

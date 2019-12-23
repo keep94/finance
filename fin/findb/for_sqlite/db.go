@@ -6,11 +6,11 @@ import (
   "fmt"
   "github.com/keep94/appcommon/db"
   "github.com/keep94/appcommon/db/sqlite_db"
+  "github.com/keep94/appcommon/db/sqlite_rw"
   "github.com/keep94/appcommon/passwords"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/consume"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "github.com/keep94/gosqlite/sqlite"
   "strconv"
   "strings"
@@ -57,7 +57,7 @@ func ReadOnlyWrapper(store Store) ReadOnlyStore {
   return ReadOnlyStore{store: store}
 }
 
-func entries(conn *sqlite.Conn, options *findb.EntryListOptions, consumer functional.Consumer) error {
+func entries(conn *sqlite.Conn, options *findb.EntryListOptions, consumer goconsume.Consumer) error {
   var sql string
   if options != nil {
     where_clauses := make([]string, 3)
@@ -103,26 +103,26 @@ func entries(conn *sqlite.Conn, options *findb.EntryListOptions, consumer functi
       return err
     }
   }
-  return consumer.Consume(sqlite_db.ReadRows(&rawEntry{}, stmt))
+  return sqlite_rw.ReadRows((&rawEntry{}).init(&fin.Entry{}), stmt, consumer)
 }
 
-func entryById(conn *sqlite.Conn, id int64, entry interface{}) error {
+func entryById(conn *sqlite.Conn, id int64, entry *fin.Entry) error {
   stmt, err := conn.Prepare(kSQLEntryById)
   if err != nil {
     return err
   }
   defer stmt.Finalize()
-  return _entryById(stmt, &rawEntry{}, id, entry)
+  return _entryById(stmt, (&rawEntry{}).init(entry), id)
 }
 
-func _entryById(stmt *sqlite.Stmt, r *rawEntry, id int64, entry interface{}) error {
+func _entryById(stmt *sqlite.Stmt, r *rawEntry, id int64) error {
   if err := stmt.Exec(id); err != nil {
     return err
   }
-  return consume.FirstOnly(sqlite_db.ReadRows(r, stmt), findb.NoSuchId, entry)
+  return sqlite_rw.FirstOnly(r, stmt, findb.NoSuchId)
 }
 
-func entriesByAccountId(conn *sqlite.Conn, acctId int64, account *fin.Account, consumer functional.Consumer) error {
+func entriesByAccountId(conn *sqlite.Conn, acctId int64, account *fin.Account, consumer goconsume.Consumer) error {
   if account == nil {
     account = &fin.Account{}
   }
@@ -134,21 +134,20 @@ func entriesByAccountId(conn *sqlite.Conn, acctId int64, account *fin.Account, c
     return err
   }
   defer stmt.Finalize()
-  stream := sqlite_db.ReadRows(&rawEntry{}, stmt)
-  stream = functional.Slice(
-      functional.Filter(
-          functional.NewFilterer(func(ptr interface{}) error {
-            p := ptr.(*fin.Entry)
-            if !p.WithPayment(acctId) {
-              return functional.Skipped
-            }
-            return nil
-          }), stream), 0, account.Count)
-  stream = &fin.AddBalanceStream{Balance: account.Balance, Stream: stream}
-  return consumer.Consume(stream)
+  consumer = &fin.AddBalanceConsumer{
+      Balance: account.Balance, BalanceConsumer: consumer}
+  consumer = goconsume.Slice(consumer, 0, account.Count)
+  consumer = goconsume.ModFilter(
+      consumer,
+      func(ptr interface{}) bool {
+        p := ptr.(*fin.Entry)
+        return p.WithPayment(acctId)
+      },
+      (*fin.Entry)(nil))
+  return sqlite_rw.ReadRows((&rawEntry{}).init(&fin.Entry{}), stmt, consumer)
 }
 
-func unreconciledEntries(conn *sqlite.Conn, acctId int64, account *fin.Account, consumer functional.Consumer) error {
+func unreconciledEntries(conn *sqlite.Conn, acctId int64, account *fin.Account, consumer goconsume.Consumer) error {
   if account == nil {
     account = &fin.Account{}
   }
@@ -160,21 +159,19 @@ func unreconciledEntries(conn *sqlite.Conn, acctId int64, account *fin.Account, 
     return err
   }
   defer stmt.Finalize()
-  stream := sqlite_db.ReadRows(&rawEntry{}, stmt)
-  stream = functional.Slice(
-      functional.Filter(
-          functional.NewFilterer(func(ptr interface{}) error {
-            p := ptr.(*fin.Entry)
-            if !p.WithPayment(acctId) || p.Reconciled() {
-              return functional.Skipped
-            }
-            return nil
-          }), stream), 0, account.Count - account.RCount)
-  return consumer.Consume(stream)
+  consumer = goconsume.Slice(consumer, 0, account.Count - account.RCount)
+  consumer = goconsume.ModFilter(
+      consumer,
+      func(ptr interface{}) bool {
+        p := ptr.(*fin.Entry)
+        return p.WithPayment(acctId) && !p.Reconciled()
+      },
+      (*fin.Entry)(nil))
+  return sqlite_rw.ReadRows((&rawEntry{}).init(&fin.Entry{}), stmt, consumer)
 }
 
 func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
-  row := &rawEntry{}
+  row := (&rawEntry{}).init(&fin.Entry{})
   var err error
   var deltas fin.AccountDeltas = make(map[int64]*fin.AccountDelta)
   var lastRowIdStmt, getStmt, addStmt, deleteStmt, updateStmt *sqlite.Stmt
@@ -211,16 +208,15 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
     }
     defer updateStmt.Finalize()
   }
-  var entry fin.Entry
   for _, id := range changes.Deletes {
-    err = _entryById(getStmt, row, id, &entry)
+    err = _entryById(getStmt, row, id)
     if err == findb.NoSuchId {
       continue
     }
     if err != nil {
       return err
     }
-    deltas.Exclude(&entry.CatPayment)
+    deltas.Exclude(&row.CatPayment)
     err = deleteStmt.Exec(id)
     if err != nil {
       return err
@@ -228,15 +224,7 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
     deleteStmt.Next()
   }
   for id, update := range changes.Updates {
-    var entryWithEtag fin.EntryWithEtag
-    var entryPtr *fin.Entry
-    if changes.Etags != nil {
-      entryPtr = &entryWithEtag.Entry
-      err = _entryById(getStmt, row, id, &entryWithEtag)
-    } else {
-      entryPtr = &entry
-      err = _entryById(getStmt, row, id, &entry)
-    }
+    err = _entryById(getStmt, row, id)
     if err == findb.NoSuchId {
       continue
     }
@@ -249,26 +237,22 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
       if !ok {
         panic("Etags field present, but does not contain etag for all updated entries.")
       }
-      if expected_etag != entryWithEtag.Etag {
+      if expected_etag != row.Etag {
         concurrent_update_detected = true
       }
     }
-    old_cat_payment := entryPtr.CatPayment
-    err = update.Filter(entryPtr)
-    if err == functional.Skipped {
+    old_cat_payment := row.CatPayment
+    if !update(row.Entry) {
       continue
-    }
-    if err != nil {
-      return err
     }
     if concurrent_update_detected {
       return findb.ConcurrentUpdate
     }
     deltas.Exclude(&old_cat_payment)
-    deltas.Include(&entryPtr.CatPayment)
-    entryPtr.Id = id
+    deltas.Include(&row.CatPayment)
+    row.Entry.Id = id
     var updateValues []interface{}
-    if updateValues, err = sqlite_db.UpdateValues(row, entryPtr); err != nil {
+    if updateValues, err = sqlite_rw.UpdateValues(row); err != nil {
       return err
     }
     err = updateStmt.Exec(updateValues...)
@@ -278,8 +262,9 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
     updateStmt.Next()
   }
   for _, entry := range changes.Adds {
+    row.init(entry)
     deltas.Include(&entry.CatPayment)
-    err = addEntry(addStmt, lastRowIdStmt, row, entry)
+    err = addEntry(addStmt, lastRowIdStmt, row)
     if err != nil {
       return err
     }
@@ -288,34 +273,20 @@ func doEntryChanges(conn *sqlite.Conn, changes *findb.EntryChanges) error {
 }
 
 func accountById(conn *sqlite.Conn, acctId int64, account *fin.Account) error {
-    return sqlite_db.ReadSingle(
+    return sqlite_rw.ReadSingle(
         conn,
-        &rawAccount{},
+        (&rawAccount{}).init(account),
         findb.NoSuchId,
-        account,
         kSQLAccountById,
         acctId)
 }
 
 func activeAccounts(conn *sqlite.Conn) (accounts []*fin.Account, err error) {
-  stmt, err := conn.Prepare(kSQLActiveAccounts)
-  if err != nil {
-    return
-  }
-  defer stmt.Finalize()
-  s := sqlite_db.ReadRows(&rawAccount{}, stmt)
-  for {
-    p := &fin.Account{}
-    err = s.Next(p)
-    if  err == functional.Done {
-      err = nil
-      return
-    }
-    if err != nil {
-      return
-    }
-    accounts = append(accounts, p)
-  }
+  err = sqlite_rw.ReadMultiple(
+      conn,
+      (&rawAccount{}).init(&fin.Account{}),
+      goconsume.AppendPtrsTo(&accounts),
+      kSQLActiveAccounts)
   return
 }
 
@@ -323,8 +294,8 @@ func updateAccountImportSD(conn *sqlite.Conn, acctId int64, date time.Time) erro
   return conn.Exec(kSQLUpdateAccountImportSD, sqlite_db.DateToString(date), acctId)
 }
 
-func addEntry(stmt, lastRowIdStmt *sqlite.Stmt, r *rawEntry, entry *fin.Entry) error {
-  values, err := sqlite_db.InsertValues(r, entry)
+func addEntry(stmt, lastRowIdStmt *sqlite.Stmt, r *rawEntry) error {
+  values, err := sqlite_rw.InsertValues(r)
   if err != nil {
     return err
   }
@@ -333,7 +304,7 @@ func addEntry(stmt, lastRowIdStmt *sqlite.Stmt, r *rawEntry, entry *fin.Entry) e
     return err
   }
   stmt.Next()
-  entry.Id, err = sqlite_db.LastRowIdFromStmt(lastRowIdStmt)
+  r.Id, err = sqlite_db.LastRowIdFromStmt(lastRowIdStmt)
   return err
 }
 
@@ -355,6 +326,11 @@ type rawEntry struct {
   status int
 }
 
+func (r *rawEntry) init(bo *fin.Entry) *rawEntry {
+  r.Entry = bo
+  return r
+}
+
 func (r *rawEntry) Ptrs() []interface{} {
   return []interface{}{&r.Id, &r.dateStr, &r.Name, &r.Desc, &r.CheckNo, &r.cat, &r.payment, &r.status}
 }
@@ -363,8 +339,12 @@ func (r *rawEntry) Values() []interface{} {
   return []interface{}{r.dateStr, r.Name, r.Desc, r.CheckNo, r.cat, r.payment, r.status, r.Id}
 }
 
-func (r *rawEntry) Pair(ptr interface{}) {
-  r.Entry = ptr.(*fin.Entry)
+func (r *rawEntry) SetEtag(etag uint64) {
+  r.Etag = etag
+}
+
+func (r *rawEntry) ValuePtr() interface{} {
+  return r.Entry
 }
 
 func (r *rawEntry) Unmarshall() error {
@@ -390,6 +370,12 @@ type rawRecurringEntry struct {
   unit int
 }
 
+func (r *rawRecurringEntry) init(bo *fin.RecurringEntry) *rawRecurringEntry {
+  r.RecurringEntry = bo
+  r.re.init(&bo.Entry)
+  return r
+}
+
 func (r *rawRecurringEntry) Ptrs() []interface{} {
   return []interface{}{&r.Id, &r.re.dateStr, &r.Name, &r.Desc, &r.CheckNo, &r.re.cat, &r.re.payment, &r.re.status, &r.Period.Count, &r.unit, &r.NumLeft, &r.Period.DayOfMonth}
 }
@@ -398,10 +384,12 @@ func (r *rawRecurringEntry) Values() []interface{} {
   return []interface{}{r.re.dateStr, r.Name, r.Desc, r.CheckNo, r.re.cat, r.re.payment, r.re.status, r.Period.Count, r.unit, r.NumLeft, r.Period.DayOfMonth, r.Id}
 }
 
-func (r *rawRecurringEntry) Pair(ptr interface{}) {
-  p := ptr.(*fin.RecurringEntry)
-  r.RecurringEntry = p
-  r.re.Pair(&p.Entry)
+func (r *rawRecurringEntry) SetEtag(etag uint64) {
+  r.Etag = etag
+}
+
+func (r *rawRecurringEntry) ValuePtr() interface{} {
+  return r.RecurringEntry
 }
 
 func (r *rawRecurringEntry) Unmarshall() (err error) {
@@ -428,6 +416,11 @@ type rawAccount struct {
   importSDStr string
 } 
 
+func (r *rawAccount) init(bo *fin.Account) *rawAccount {
+  r.Account = bo
+  return r
+}
+
 func (r *rawAccount) Ptrs() []interface{} {
   return []interface{} {&r.Id, &r.Name, &r.Active, &r.Balance, &r.RBalance, &r.Count, &r.RCount, &r.importSDStr}
 }
@@ -436,8 +429,8 @@ func (r *rawAccount) Values() []interface{} {
   return []interface{} {r.Name, r.Active, r.Balance, r.RBalance, r.Count, r.RCount, r.importSDStr, r.Id}
 }
 
-func (r *rawAccount) Pair(ptr interface{}) {
-  r.Account = ptr.(*fin.Account)
+func (r *rawAccount) ValuePtr() interface{} {
+  return r.Account
 }
 
 func (r *rawAccount) Unmarshall() error {
@@ -457,6 +450,11 @@ type rawUser struct {
   rawLastLogin int64
 } 
 
+func (r *rawUser) init(bo *fin.User) *rawUser {
+  r.User = bo
+  return r
+}
+
 func (r *rawUser) Ptrs() []interface{} {
   return []interface{} {&r.Id, &r.Name, &r.rawPassword, &r.rawPermission, &r.rawLastLogin}
 }
@@ -465,8 +463,8 @@ func (r *rawUser) Values() []interface{} {
   return []interface{} {r.Name, r.rawPassword, r.rawPermission, r.rawLastLogin, r.Id}
 }
 
-func (r *rawUser) Pair(ptr interface{}) {
-  r.User = ptr.(*fin.User)
+func (r *rawUser) ValuePtr() interface{} {
+  return r.User
 }
 
 func (r *rawUser) Unmarshall() error {
@@ -584,10 +582,10 @@ func (s Store) AccountById(
 }
 
 func (s Store) Accounts(
-    t db.Transaction, consumer functional.Consumer) error {
+    t db.Transaction, consumer goconsume.Consumer) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.ReadMultiple(
-        conn, &rawAccount{}, consumer, kSQLAccounts)
+    return sqlite_rw.ReadMultiple(
+        conn, (&rawAccount{}).init(&fin.Account{}), consumer, kSQLAccounts)
   })
 }
 
@@ -602,8 +600,8 @@ func (s Store) ActiveAccounts(t db.Transaction) (
 
 func (s Store) AddAccount(t db.Transaction, account *fin.Account) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.AddRow(
-        conn, &rawAccount{}, account, &account.Id, kSQLInsertAccount)
+    return sqlite_rw.AddRow(
+        conn, (&rawAccount{}).init(account), &account.Id, kSQLInsertAccount)
   })
 }
 
@@ -616,7 +614,7 @@ func (s Store) DoEntryChanges(
 
 func (s Store) Entries(
     t db.Transaction, options *findb.EntryListOptions,
-    consumer functional.Consumer) error {
+    consumer goconsume.Consumer) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
     return entries(conn, options, consumer)
   })
@@ -624,7 +622,7 @@ func (s Store) Entries(
 
 func (s Store) EntriesByAccountId(
     t db.Transaction, acctId int64, account *fin.Account,
-    consumer functional.Consumer) error {
+    consumer goconsume.Consumer) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
     return entriesByAccountId(conn, acctId, account, consumer)
   })
@@ -637,16 +635,9 @@ func (s Store) EntryById(
   })
 }
 
-func (s Store) EntryByIdWithEtag(
-    t db.Transaction, id int64, entry *fin.EntryWithEtag) error {
-  return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return entryById(conn, id, entry)
-  })
-}
-
 func (s Store) UnreconciledEntries(
     t db.Transaction, acctId int64,
-    account *fin.Account, consumer functional.Consumer) error {
+    account *fin.Account, consumer goconsume.Consumer) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
     return unreconciledEntries(conn, acctId, account, consumer)
   })
@@ -662,7 +653,8 @@ func (s Store) UpdateAccountImportSD(
 func (s Store) UpdateAccount(
     t db.Transaction, account *fin.Account) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.UpdateRow(conn, &rawAccount{}, account, kSQLUpdateAccount)
+    return sqlite_rw.UpdateRow(
+        conn, (&rawAccount{}).init(account), kSQLUpdateAccount)
   })
 }
 
@@ -675,7 +667,8 @@ func (s Store) RemoveAccount(
 
 func (s Store) AddUser(t db.Transaction, user *fin.User) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.AddRow(conn, &rawUser{}, user, &user.Id, kSQLInsertUser)
+    return sqlite_rw.AddRow(
+        conn, (&rawUser{}).init(user), &user.Id, kSQLInsertUser)
   })
 }
 
@@ -687,82 +680,82 @@ func (s Store) RemoveUserByName(t db.Transaction, name string) error {
 
 func (s Store) UpdateUser(t db.Transaction, user *fin.User) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.UpdateRow(conn, &rawUser{}, user, kSQLUpdateUser)
+    return sqlite_rw.UpdateRow(
+        conn, (&rawUser{}).init(user), kSQLUpdateUser)
   })
 }
 
 func (s Store) UserById(
     t db.Transaction, id int64, user *fin.User) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.ReadSingle(
-        conn, &rawUser{}, findb.NoSuchId, user, kSQLUserById, id)
+    return sqlite_rw.ReadSingle(
+        conn,
+        (&rawUser{}).init(user),
+        findb.NoSuchId,
+        kSQLUserById,
+        id)
   })
 }
 
 func (s Store) UserByName(
     t db.Transaction, name string, user *fin.User) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.ReadSingle(
-        conn, &rawUser{}, findb.NoSuchId, user, kSQLUserByName, name)
+    return sqlite_rw.ReadSingle(
+        conn,
+        (&rawUser{}).init(user),
+        findb.NoSuchId,
+        kSQLUserByName,
+        name)
   })
 }
 
 func (s Store) Users(
-    t db.Transaction, consumer functional.Consumer) error {
+    t db.Transaction, consumer goconsume.Consumer) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.ReadMultiple(conn, &rawUser{}, consumer, kSQLUsers)
+    return sqlite_rw.ReadMultiple(
+        conn, (&rawUser{}).init(&fin.User{}), consumer, kSQLUsers)
   })
 }
 
 func (s Store) AddRecurringEntry(
     t db.Transaction, entry *fin.RecurringEntry) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.AddRow(
-        conn, &rawRecurringEntry{}, entry, &entry.Id, kSQLInsertRecurringEntry)
+    return sqlite_rw.AddRow(
+        conn,
+        (&rawRecurringEntry{}).init(entry),
+        &entry.Id,
+        kSQLInsertRecurringEntry)
   })
 }
 
 func (s Store) UpdateRecurringEntry(
     t db.Transaction, entry *fin.RecurringEntry) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.UpdateRow(
-        conn, &rawRecurringEntry{}, entry, kSQLUpdateRecurringEntry)
+    return sqlite_rw.UpdateRow(
+        conn, (&rawRecurringEntry{}).init(entry), kSQLUpdateRecurringEntry)
   })
 }
 
 func (s Store) RecurringEntryById(
       t db.Transaction, id int64, entry *fin.RecurringEntry) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.ReadSingle(
+    return sqlite_rw.ReadSingle(
         conn,
-        &rawRecurringEntry{},
+        (&rawRecurringEntry{}).init(entry),
         findb.NoSuchId,
-        entry,
-        kSQLRecurringEntryById,
-        id)
-  })
-}
-
-func (s Store) RecurringEntryByIdWithEtag(
-      t db.Transaction,
-      id int64,
-      entry *fin.RecurringEntryWithEtag) error {
-  return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.ReadSingle(
-        conn,
-        &rawRecurringEntry{},
-        findb.NoSuchId,
-        entry,
         kSQLRecurringEntryById,
         id)
   })
 }
 
 func (s Store) RecurringEntries(
-    t db.Transaction, consumer functional.Consumer) error {
+    t db.Transaction, consumer goconsume.Consumer) error {
   return sqlite_db.ToDoer(s.db, t).Do(func(conn *sqlite.Conn) error {
-    return sqlite_db.ReadMultiple(
-        conn, &rawRecurringEntry{}, consumer, kSQLRecurringEntries)
+    return sqlite_rw.ReadMultiple(
+        conn,
+        (&rawRecurringEntry{}).init(&fin.RecurringEntry{}),
+        consumer,
+        kSQLRecurringEntries)
   })
 }
 
@@ -784,7 +777,7 @@ func (s ReadOnlyStore) AccountById(
 }
 
 func (s ReadOnlyStore) Accounts(
-    t db.Transaction, consumer functional.Consumer) error {
+    t db.Transaction, consumer goconsume.Consumer) error {
   return s.store.Accounts(t, consumer)
 }
 
@@ -795,13 +788,13 @@ func (s ReadOnlyStore) ActiveAccounts(t db.Transaction) (
 
 func (s ReadOnlyStore) Entries(
     t db.Transaction, options *findb.EntryListOptions,
-    consumer functional.Consumer) error {
+    consumer goconsume.Consumer) error {
   return s.store.Entries(t, options, consumer)
 }
 
 func (s ReadOnlyStore) EntriesByAccountId(
     t db.Transaction, acctId int64, account *fin.Account,
-    consumer functional.Consumer) error {
+    consumer goconsume.Consumer) error {
   return s.store.EntriesByAccountId(t, acctId, account, consumer)
 }
 
@@ -810,14 +803,9 @@ func (s ReadOnlyStore) EntryById(
   return s.store.EntryById(t, id, entry)
 }
 
-func (s ReadOnlyStore) EntryByIdWithEtag(
-    t db.Transaction, id int64, entry *fin.EntryWithEtag) error {
-  return s.store.EntryByIdWithEtag(t, id, entry)
-}
-
 func (s ReadOnlyStore) UnreconciledEntries(
     t db.Transaction, acctId int64,
-    account *fin.Account, consumer functional.Consumer) error {
+    account *fin.Account, consumer goconsume.Consumer) error {
   return s.store.UnreconciledEntries(t, acctId, account, consumer)
 }
 
@@ -832,7 +820,7 @@ func (s ReadOnlyStore) UserByName(
 }
 
 func (s ReadOnlyStore) Users(
-    t db.Transaction, consumer functional.Consumer) error {
+    t db.Transaction, consumer goconsume.Consumer) error {
   return s.store.Users(t, consumer)
 }
 
@@ -841,12 +829,7 @@ func (s ReadOnlyStore) RecurringEntryById(
   return s.store.RecurringEntryById(t, id, entry)
 }
 
-func (s ReadOnlyStore) RecurringEntryByIdWithEtag(
-      t db.Transaction, id int64, entry *fin.RecurringEntryWithEtag) error {
-  return s.store.RecurringEntryByIdWithEtag(t, id, entry)
-}
-
 func (s ReadOnlyStore) RecurringEntries(
-    t db.Transaction, consumer functional.Consumer) error {
+    t db.Transaction, consumer goconsume.Consumer) error {
   return s.store.RecurringEntries(t, consumer)
 }

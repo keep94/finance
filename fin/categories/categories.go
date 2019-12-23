@@ -5,7 +5,6 @@ import (
   "errors"
   "fmt"
   "github.com/keep94/finance/fin"
-  "github.com/keep94/gofunctional3/functional"
   "sort"
   "strconv"
   "strings"
@@ -692,16 +691,14 @@ type AccountDetailConsumer struct {
   Builder *CatDetailStoreBuilder
 }
 
+func (c *AccountDetailConsumer) CanConsume() bool {
+  return true
+}
+
 // Consume does the populating. s is a Stream of Account values.
-func (c *AccountDetailConsumer) Consume(s functional.Stream) (err error) {
-  var account fin.Account
-  for err = s.Next(&account); err == nil; err = s.Next(&account)  {
-    c.Builder.AddAccount(&account)
-  }
-  if err == functional.Done {
-    err = nil
-  }
-  return
+func (c *AccountDetailConsumer) Consume(ptr interface{}) {
+  account := ptr.(*fin.Account)
+  c.Builder.AddAccount(account)
 }
 
 // CatDetailConsumer populates a CatDetailStoreBuilder value with CatDbRow values.
@@ -712,16 +709,13 @@ type CatDetailConsumer struct {
   Type fin.CatType
 }
 
-// Consume does the populating. s is a Stream of CatDbRow values.
-func (c *CatDetailConsumer) Consume(s functional.Stream) (err error) {
-  var row CatDbRow
-  for err = s.Next(&row); err == nil; err = s.Next(&row)  {
-    c.Builder.AddCatDbRow(c.Type, &row)
-  }
-  if err == functional.Done {
-    err = nil
-  }
-  return
+func (c *CatDetailConsumer) CanConsume() bool {
+  return true
+}
+
+func (c *CatDetailConsumer) Consume(ptr interface{}) {
+  row := ptr.(*CatDbRow)
+  c.Builder.AddCatDbRow(c.Type, row)
 }
 
 type catDetails []CatDetail

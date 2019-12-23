@@ -7,7 +7,7 @@ import (
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "net/url"
   "strconv"
   "strings"
@@ -69,7 +69,6 @@ func (s EntrySplitType) ReconcileParam() string {
 // The caller must refrain from making other types of changes to returned view.
 func ToSingleEntryView(
     entry *fin.Entry,
-    tag uint64,
     xsrf string,
     cds categories.CatDetailStore) *SingleEntryView {
   result := &SingleEntryView{
@@ -79,7 +78,7 @@ func ToSingleEntryView(
       Error: nil,
       Xsrf: xsrf,
       ExistingEntry: true}
-  result.Set("etag", strconv.FormatUint(tag, 10))
+  result.Set("etag", strconv.FormatUint(entry.Etag, 10))
   result.Set("name", entry.Name)
   result.Set("desc", entry.Desc)
   result.Set("checkno", entry.CheckNo)
@@ -127,9 +126,9 @@ func ToSingleEntryViewFromForm(
 
 // EntryMutation converts the form values from a single entry page into
 // a mutation and returns that mutation or an error if the form values were
-// invalid.
-// Calling Filter on the returned functional.Filterer always returns nil.
-func EntryMutation(values url.Values) (mutation functional.Filterer, err error) {
+// invalid. Returned filter always returns true.
+func EntryMutation(values url.Values) (
+    mutation goconsume.FilterFunc, err error) {
   date, err := time.Parse(date_util.YMDFormat, values.Get("date"))
   if err != nil {
     err = errors.New("Date in wrong format.")
@@ -170,7 +169,7 @@ func EntryMutation(values url.Values) (mutation functional.Filterer, err error) 
   }
   cp := cpb.Build()
   needReview := values.Get("need_review") != ""
-  mutation = functional.NewFilterer(func(ptr interface{}) error {
+  mutation = func(ptr interface{}) bool {
     p := ptr.(*fin.Entry)
     p.Date = date
     p.Name = name
@@ -186,8 +185,8 @@ func EntryMutation(values url.Values) (mutation functional.Filterer, err error) 
         p.Status = fin.Reviewed
       }
     }
-    return nil
-  })
+    return true
+  }
   return
 }
 

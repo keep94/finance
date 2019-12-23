@@ -3,10 +3,11 @@ package for_sqlite
 
 import (
   "github.com/keep94/appcommon/db/sqlite_db"
+  "github.com/keep94/appcommon/db/sqlite_rw"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
   fsqlite "github.com/keep94/finance/fin/findb/for_sqlite"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "github.com/keep94/gosqlite/sqlite"
 )
 
@@ -78,7 +79,7 @@ type catDetailStoreUpdater struct {
 }
 
 func (u catDetailStoreUpdater) Add(t fin.CatType, row *categories.CatDbRow) error {
-  values, err := sqlite_db.InsertValues(&rawCatDbRow{}, row)
+  values, err := sqlite_rw.InsertValues((&rawCatDbRow{}).init(row))
   if err != nil {
     return err
   }
@@ -97,7 +98,7 @@ func (u catDetailStoreUpdater) Add(t fin.CatType, row *categories.CatDbRow) erro
 }
 
 func (u catDetailStoreUpdater) Update(t fin.CatType, row *categories.CatDbRow) error {
-  values, err := sqlite_db.UpdateValues(&rawCatDbRow{}, row)
+  values, err := sqlite_rw.UpdateValues((&rawCatDbRow{}).init(row))
   if err != nil {
     return err
   }
@@ -122,7 +123,12 @@ func (u catDetailStoreUpdater) Remove(t fin.CatType, id int64) error {
 
 type rawCatDbRow struct {
   *categories.CatDbRow
-  sqlite_db.SimpleRow
+  sqlite_rw.SimpleRow
+}
+
+func (r *rawCatDbRow) init(bo *categories.CatDbRow) *rawCatDbRow {
+  r.CatDbRow = bo
+  return r
 }
 
 func (r *rawCatDbRow) Ptrs() []interface{} {
@@ -133,24 +139,30 @@ func (r *rawCatDbRow) Values() []interface{} {
   return []interface{} {r.Name, r.Active, r.ParentId, r.Id}
 }
 
-func (r *rawCatDbRow) Pair(ptr interface{}) {
-  r.CatDbRow = ptr.(*categories.CatDbRow)
+func (r *rawCatDbRow) ValuePtr() interface{} {
+  return r.CatDbRow
 }
 
-func expenseCategories(conn *sqlite.Conn, consumer functional.Consumer) error {
+func expenseCategories(conn *sqlite.Conn, consumer goconsume.Consumer) error {
   stmt, err := conn.Prepare("select id, name, is_active, parent_id from expense_categories")
   if err != nil {
     return err
   }
   defer stmt.Finalize()
-  return consumer.Consume(sqlite_db.ReadRows(&rawCatDbRow{}, stmt))
+  return sqlite_rw.ReadRows(
+      (&rawCatDbRow{}).init(&categories.CatDbRow{}),
+      stmt,
+      consumer)
 }
 
-func incomeCategories(conn *sqlite.Conn, consumer functional.Consumer) error {
+func incomeCategories(conn *sqlite.Conn, consumer goconsume.Consumer) error {
   stmt, err := conn.Prepare("select id, name, is_active, parent_id from income_categories")
   if err != nil {
     return err
   }
   defer stmt.Finalize()
-  return consumer.Consume(sqlite_db.ReadRows(&rawCatDbRow{}, stmt))
+  return sqlite_rw.ReadRows(
+      (&rawCatDbRow{}).init(&categories.CatDbRow{}),
+      stmt,
+      consumer)
 }

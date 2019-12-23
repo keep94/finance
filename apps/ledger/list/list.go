@@ -10,7 +10,7 @@ import (
   "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/filters"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "net/url"
@@ -137,7 +137,7 @@ Page: {{.DisplayPageNo}}&nbsp;
       <td>Amount</td>
       <td>Account</td>
     </tr>
-  {{range .Pager.Values}}
+  {{range .Entries}}
       <tr class="lineitem">
         <td>{{FormatDate .Date}}</td>
         <td>{{range $top.CatLink .CatPayment}}{{if .Link}}<a href="{{.Link}}">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{end}}</td>
@@ -205,7 +205,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       errorMessage = "Range must be of form 12.34 to 56.78."
     }
   }
-  var filter functional.Filterer
+  var filter goconsume.FilterFunc
   if amtFilter != nil || filt != nil || r.Form.Get("name") != "" || r.Form.Get("desc") != "" {
     filter = filters.CompileAdvanceSearchSpec(&filters.AdvanceSearchSpec{
         CF: filt,
@@ -214,16 +214,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         Desc: r.Form.Get("desc")})
   }
   var totaler *aggregators.Totaler
-  epb := consumers.NewEntryPageBuffer(h.PageSize, pageNo)
-  var cr functional.Consumer = epb
+  var entries []fin.Entry
+  var morePages bool
+  epb := goconsume.Page(pageNo, h.PageSize, &entries, &morePages)
+  var cr goconsume.Consumer = epb
   sdPtr, sderr := getDateRelaxed(r.Form, "sd")
   edPtr, ederr := getDateRelaxed(r.Form, "ed")
   if filter != nil {
     if sdPtr != nil {
       totaler = &aggregators.Totaler{}
-      cr = consumers.Compose(consumers.FromCatPaymentAggregator(totaler), cr)
+      cr = goconsume.Compose(consumers.FromCatPaymentAggregator(totaler), cr)
     }
-    cr = functional.FilterConsumer(cr, filter)
+    cr = goconsume.ModFilter(cr, filter, (*fin.Entry)(nil))
   }
   var elo *findb.EntryListOptions
   if sderr != nil || ederr != nil {
@@ -232,6 +234,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     elo = &findb.EntryListOptions{Start: sdPtr, End: edPtr}
   }
   err := h.Store.Entries(nil, elo, cr)
+  epb.Finalize()
   if err != nil {
     http_util.ReportError(w, "Error reading database.", err)
     return
@@ -244,10 +247,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       w,
       kTemplate,
       &view{
-          http_util.Pager{
-              PageBuffer: epb.PageBuffer,
+          http_util.PageBreadCrumb{
               URL: r.URL,
-              PageNoParam: kPageParam},
+              PageNoParam: kPageParam,
+              PageNo: pageNo,
+              End: !morePages},
+          entries,
           totaler,
           http_util.Values{r.Form},
           common.CatDisplayer{cds},
@@ -257,7 +262,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type view struct {
-  http_util.Pager
+  http_util.PageBreadCrumb
+  Entries []fin.Entry
   *aggregators.Totaler
   http_util.Values
   common.CatDisplayer

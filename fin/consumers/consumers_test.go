@@ -1,14 +1,8 @@
 package consumers
 
 import (
-  "errors"
   "github.com/keep94/finance/fin"
-  "github.com/keep94/gofunctional3/functional"
   "testing"
-)
-
-var (
-  someError = errors.New("consumers: some error.")
 )
 
 func TestFromCatPaymentAggregator(t *testing.T) {
@@ -18,10 +12,8 @@ func TestFromCatPaymentAggregator(t *testing.T) {
   }
   aggregator := catPaymentTotaler{}
   consumer := FromCatPaymentAggregator(&aggregator)
-  err := consumer.Consume(functional.NewStreamFromValues(entries, nil))
-  if err != nil {
-    t.Errorf("Expected no error, got %v", err)
-  }
+  consumer.Consume(&entries[0])
+  consumer.Consume(&entries[1])
   if aggregator.total != 1100 {
     t.Errorf("Expected 1100, got %v", aggregator.total)
   }
@@ -34,32 +26,10 @@ func TestFromEntryAggregator(t *testing.T) {
   }
   aggregator := entryTotaler{}
   consumer := FromEntryAggregator(&aggregator)
-  err := consumer.Consume(functional.NewStreamFromValues(entries, nil))
-  if err != nil {
-    t.Errorf("Expected no error, got %v", err)
-  }
+  consumer.Consume(&entries[0])
+  consumer.Consume(&entries[1])
   if aggregator.total != 1100 {
     t.Errorf("Expected 1100, got %v", aggregator.total)
-  }
-}
-
-func TestFromCatPaymentAggregatorError(t *testing.T) {
-  aggregator := catPaymentTotaler{}
-  consumer := FromCatPaymentAggregator(&aggregator)
-  es := errorStream{err: someError}
-  err := consumer.Consume(es)
-  if err != someError {
-    t.Errorf("Expected someError, got %v", err)
-  }
-}
-
-func TestFromEntryAggregatorError(t *testing.T) {
-  aggregator := entryTotaler{}
-  consumer := FromEntryAggregator(&aggregator)
-  es := errorStream{err: someError}
-  err := consumer.Consume(es)
-  if err != someError {
-    t.Errorf("Expected someError, got %v", err)
   }
 }
 
@@ -81,16 +51,4 @@ type catPaymentTotaler struct {
 
 func (c *catPaymentTotaler) Include(cp *fin.CatPayment) {
   c.total += cp.Total()
-}
-
-type errorStream struct {
-  err error
-}
-
-func (e errorStream) Next(ptr interface{}) error {
-  return e.err
-}
-
-func (e errorStream) Close() error {
-  return nil
 }

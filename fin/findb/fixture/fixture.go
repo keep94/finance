@@ -9,10 +9,8 @@ import (
   "github.com/keep94/appcommon/db"
   "github.com/keep94/appcommon/passwords"
   "github.com/keep94/finance/fin"
-  "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/consume"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "reflect"
   "testing"
   "time"
@@ -47,7 +45,6 @@ type EntryByIdStore interface {
 type EntryByIdWithEtagStore interface {
   MinimalStore
   findb.EntryByIdRunner
-  findb.EntryByIdWithEtagRunner
   findb.AccountByIdRunner
 }
 
@@ -118,7 +115,7 @@ func (f EntryAccountFixture) AccountUpdates(t *testing.T, store AccountByIdStore
       &fin.Account{Id: 2, Name: "savings", Active: true, Balance: 2000, RBalance: 0, Count: 1, RCount: 0})
 
   changes = findb.EntryChanges{
-      Updates: map[int64]functional.Filterer {
+      Updates: map[int64]goconsume.FilterFunc {
           1: reconcileFunc(2),
           2: reconcileFunc(1),
           9999: reconcileFunc(1)}}
@@ -167,34 +164,10 @@ func (f EntryAccountFixture) UpdateEntry(t *testing.T, store EntryByIdStore) {
       CatPayment: fin.NewCatPayment(fin.NewCat("0:4"), 1234, false, 1),
       Status: fin.Reviewed}
   ec = findb.EntryChanges{
-      Updates: map[int64]functional.Filterer{
-          entry.Id: changeTo(&new_entry)}}
+      Updates: map[int64]goconsume.FilterFunc {
+          entry.Id: changeTo(&new_entry, true)}}
   changeEntries(t, store, &ec)
   verifyEntries(t, store, &new_entry)
-}
-
-func (f EntryAccountFixture) UpdateEntryError(
-    t *testing.T, store EntryByIdStore) {
-  f.createAccounts(t, store)
-  entry := fin.Entry{}
-  ec := findb.EntryChanges{Adds: []*fin.Entry{&entry}}
-  changeEntries(t, store, &ec)
-  new_entry := fin.Entry{
-      Id: entry.Id,
-      Date: date_util.YMD(2012, 12, 9),
-      Name: "Foo",
-      Desc: "A description",
-      CheckNo: "1356",
-      CatPayment: fin.NewCatPayment(fin.NewCat("0:4"), 1234, false, 1),
-      Status: fin.Reviewed}
-  ec = findb.EntryChanges{
-      Updates: map[int64]functional.Filterer{
-          entry.Id: throwError(changeTo(&new_entry), changeError)}}
-  err := store.DoEntryChanges(nil, &ec)
-  if err != changeError {
-    t.Fatalf("Expected changeError, got %v", err)
-  }
-  verifyEntries(t, store, &entry)
 }
 
 func (f EntryAccountFixture) UpdateEntrySkipped(
@@ -212,8 +185,8 @@ func (f EntryAccountFixture) UpdateEntrySkipped(
       CatPayment: fin.NewCatPayment(fin.NewCat("0:4"), 1234, false, 1),
       Status: fin.Reviewed}
   ec = findb.EntryChanges{
-      Updates: map[int64]functional.Filterer{
-          entry.Id: throwError(changeTo(&new_entry), functional.Skipped)}}
+      Updates: map[int64]goconsume.FilterFunc{
+          entry.Id: changeTo(&new_entry, false)}}
   changeEntries(t, store, &ec)
   verifyEntries(t, store, &entry)
 }
@@ -221,7 +194,7 @@ func (f EntryAccountFixture) UpdateEntrySkipped(
 func (f EntryAccountFixture) ListEntries(t *testing.T, store EntriesStore) {
   f.createAccounts(t, store)
   createListEntries(t, store)
-  fetched_entries := fetchEntries(t, store, nil, 10)
+  fetched_entries := fetchEntries(t, store, nil)
   verifyEntriesSorted(t, fetched_entries)
   if output := len(fetched_entries); output != 5 {
     t.Errorf("Expected to fetch 5 entries, but fetched %v", output)
@@ -233,7 +206,7 @@ func (f EntryAccountFixture) DeleteEntries(t *testing.T, store EntriesStore) {
   createListEntries(t, store)
   changes := findb.EntryChanges{Deletes: []int64{1, 9998, 2}}
   changeEntries(t, store, &changes)
-  fetched_entries := fetchEntries(t, store, nil, 10)
+  fetched_entries := fetchEntries(t, store, nil)
   verifyEntriesSorted(t, fetched_entries)
   if output := len(fetched_entries); output != 3 {
     t.Errorf("Expected to fetch 3 entries, but fetched %v", output)
@@ -244,7 +217,7 @@ func (f EntryAccountFixture) ListEntriesEmptyOptions(
     t *testing.T, store EntriesStore) {
   f.createAccounts(t, store)
   createListEntries(t, store)
-  fetched_entries := fetchEntries(t, store, &findb.EntryListOptions{}, 10)
+  fetched_entries := fetchEntries(t, store, &findb.EntryListOptions{})
   verifyEntriesSorted(t, fetched_entries)
   if output := len(fetched_entries); output != 5 {
     t.Errorf("Expected to fetch 5 entries, but fetched %v", output)
@@ -258,7 +231,7 @@ func (f EntryAccountFixture) ListEntriesDateRange(
   elo := findb.EntryListOptions{
       Start: ymdPtr(2012, 10, 15),
       End: ymdPtr(2012, 10, 16)}
-  fetched_entries := fetchEntries(t, store, &elo, 10)
+  fetched_entries := fetchEntries(t, store, &elo)
   verifyEntriesSorted(t, fetched_entries)
   if output := len(fetched_entries); output != 2 {
     t.Errorf("Expected to fetch 2 entries, but fetched %v", output)
@@ -273,7 +246,7 @@ func (f EntryAccountFixture) ListEntriesDateRangeAndUnreviewed(
       Start: ymdPtr(2012, 10, 15),
       End: ymdPtr(2012, 10, 16),
       Unreviewed: true}
-  fetched_entries := fetchEntries(t, store, &elo, 10)
+  fetched_entries := fetchEntries(t, store, &elo)
   verifyEntriesSorted(t, fetched_entries)
   if output := len(fetched_entries); output != 1 {
     t.Errorf("Expected to fetch 1 entries, but fetched %v", output)
@@ -286,7 +259,7 @@ func (f EntryAccountFixture) ListEntriesJustStartDate(
   createListEntries(t, store)
   elo := findb.EntryListOptions{
       Start: ymdPtr(2012, 10, 15)}
-  fetched_entries := fetchEntries(t, store, &elo, 10)
+  fetched_entries := fetchEntries(t, store, &elo)
   verifyEntriesSorted(t, fetched_entries)
   if output := len(fetched_entries); output != 4 {
     t.Errorf("Expected to fetch 4 entries, but fetched %v", output)
@@ -299,7 +272,7 @@ func (f EntryAccountFixture) ListEntriesJustEndDate(
   createListEntries(t, store)
   elo := findb.EntryListOptions{
       End: ymdPtr(2012, 10, 15)}
-  fetched_entries := fetchEntries(t, store, &elo, 10)
+  fetched_entries := fetchEntries(t, store, &elo)
   verifyEntriesSorted(t, fetched_entries)
   if output := len(fetched_entries); output != 1 {
     t.Errorf("Expected to fetch 1 entries, but fetched %v", output)
@@ -312,7 +285,7 @@ func (f EntryAccountFixture) ListEntriesUnreviewed(
   createListEntries(t, store)
   elo := findb.EntryListOptions{
       Unreviewed: true}
-  fetched_entries := fetchEntries(t, store, &elo, 10)
+  fetched_entries := fetchEntries(t, store, &elo)
   verifyEntriesSorted(t, fetched_entries)
   if output := len(fetched_entries); output != 3 {
     t.Errorf("Expected to fetch 3 entries, but fetched %v", output)
@@ -334,14 +307,14 @@ func (f EntryAccountFixture) EntriesByAccountIdNilPtr(
     t *testing.T, store EntriesByAccountIdStore) {
   f.createAccounts(t, store)
   createListEntries(t, store)
-  ebb := consumers.NewEntryBalanceBuffer(5)
-  err := store.EntriesByAccountId(nil, 1, nil, ebb)
+  var entriesWithBalance []fin.EntryBalance
+  err := store.EntriesByAccountId(
+      nil, 1, nil, goconsume.AppendTo(&entriesWithBalance))
   if err != nil {
     t.Fatalf("Got error reading database: %v", err)
   }
-  entriesWithBalance := ebb.EntriesWithBalance()
   if output := len(entriesWithBalance); output != 2 {
-    t.Errorf("Expected size 2, got %v", output)
+    t.Fatalf("Expected size 2, got %v", output)
   }
   verifyEntryBalanceSorted(t, entriesWithBalance)
   verifyEntryBalances(
@@ -363,15 +336,16 @@ func (f EntryAccountFixture) UnreconciledEntriesNoAccount(
     t *testing.T, store UnreconciledEntriesStore) {
   f.createAccounts(t, store)
   createListEntries(t, store)
-  store.UnreconciledEntries(nil, 1, nil, consumers.NewEntryBuffer(1))
+  var entries []fin.Entry
+  store.UnreconciledEntries(nil, 1, nil, goconsume.AppendTo(&entries))
 }
 
 func (f EntryAccountFixture) ConcurrentUpdateDetection(
     t *testing.T, store EntryByIdWithEtagStore) {
   f.createAccounts(t, store)
   createListEntries(t, store)
-  var entryWithEtag fin.EntryWithEtag
-  err := store.EntryByIdWithEtag(nil, 2, &entryWithEtag)
+  var entryWithEtag fin.Entry
+  err := store.EntryById(nil, 2, &entryWithEtag)
   if err != nil {
     t.Errorf("Error reading entry from database: %v", err)
     return
@@ -394,8 +368,8 @@ func (f EntryAccountFixture) ConcurrentUpdateDetection(
   oldAmt := -entryWithEtag.Total()
   newCp := fin.NewCatPayment(fin.NewCat("2:1"), oldAmt + 132, true, 2)
   ec := findb.EntryChanges{
-    Updates: map[int64]functional.Filterer {
-        2: functional.All(
+    Updates: map[int64]goconsume.FilterFunc {
+        2: goconsume.All(
             changeNameFunc("A new name."),
             changeCatPaymentFunc(&newCp))},
     Etags: map[int64]uint64 {
@@ -405,7 +379,7 @@ func (f EntryAccountFixture) ConcurrentUpdateDetection(
     t.Errorf("Error updating database: %v", err)
   }
   ec = findb.EntryChanges{
-    Updates: map[int64]functional.Filterer {
+    Updates: map[int64]goconsume.FilterFunc {
         2: changeNameFunc("Another new name.")},
     Etags: map[int64]uint64 {
         2: etag}}
@@ -446,28 +420,13 @@ func (f EntryAccountFixture) ConcurrentUpdateSkipped(
   f.createAccounts(t, store)
   createListEntries(t, store)
   ec := findb.EntryChanges{
-    Updates: map[int64]functional.Filterer {
-        2: throwError(nil, functional.Skipped)},
+    Updates: map[int64]goconsume.FilterFunc {
+        2: skipUpdate},
     Etags: map[int64]uint64 {  // Etag doesn't match
         2: 9999}}
   err := store.DoEntryChanges(nil, &ec)
   if err != nil {
     t.Errorf("Error updating database: %v", err)
-  }
-}
-
-func (f EntryAccountFixture) ConcurrentUpdateError(
-    t *testing.T, store EntryByIdStore) {
-  f.createAccounts(t, store)
-  createListEntries(t, store)
-  ec := findb.EntryChanges{
-    Updates: map[int64]functional.Filterer {
-        2: throwError(nil, changeError)},
-    Etags: map[int64]uint64 {  // Etag doesn't match
-        2: 9999}}
-  err := store.DoEntryChanges(nil, &ec)
-  if err != changeError {
-    t.Errorf("Expected changeError error, got %v", err)
   }
 }
 
@@ -618,7 +577,7 @@ func (f EntryAccountFixture) ApplyRecurringEntries(
   // Make sure fetching entries is sorted by ID in descending order
   var addedEntries []*fin.RecurringEntry
   if err := store.RecurringEntries(
-      nil, consume.AppendPtrsTo(&addedEntries, nil)); err != nil {
+      nil, goconsume.AppendPtrsTo(&addedEntries)); err != nil {
     t.Fatalf("Error fetching recurring entries: %v", err)
   }
   verifyRecurringEntriesSortedByDate(t, addedEntries)
@@ -781,14 +740,13 @@ func createListEntries(t *testing.T, store findb.DoEntryChangesRunner) {
 func fetchEntries(
     t *testing.T,
     store findb.EntriesRunner,
-    options *findb.EntryListOptions,
-    capacity int) []fin.Entry {
-  eb := consumers.NewEntryBuffer(capacity)
-  err := store.Entries(nil, options, eb)
+    options *findb.EntryListOptions) []fin.Entry {
+  var entries []fin.Entry
+  err := store.Entries(nil, options, goconsume.AppendTo(&entries))
   if err != nil {
     t.Fatalf("Got error fetching entries: %v", err)
   }
-  return eb.Entries()
+  return entries
 }
 
 func changeEntries(
@@ -891,8 +849,10 @@ func verifyEntries(
       t.Errorf("Expected no error, got %v", err)
       return
     }
-    if !reflect.DeepEqual(expected, &actual) {
-      t.Errorf("Expected %v, got %v", *expected, actual)
+    expectedWithEtag := *expected
+    expectedWithEtag.Etag = actual.Etag
+    if !reflect.DeepEqual(&expectedWithEtag, &actual) {
+      t.Errorf("Expected %v, got %v", expectedWithEtag, actual)
     }
   }
 }
@@ -910,14 +870,14 @@ func verifyEntriesByAccountId(
     store findb.EntriesByAccountIdRunner,
     acct_id int64,
     expected_number int) {
-  ebb := consumers.NewEntryBalanceBuffer(2 * expected_number + 1)
+  var entries []fin.EntryBalance
   account := fin.Account{}
-  err := store.EntriesByAccountId(nil, acct_id, &account, ebb)
+  err := store.EntriesByAccountId(
+      nil, acct_id, &account, goconsume.AppendTo(&entries))
   if err != nil {
     t.Errorf("Got error reading database: %v", err)
     return
   }
-  entries := ebb.EntriesWithBalance()
   if len(entries) != expected_number {
     t.Errorf("Expected %v entries, got %v", expected_number, len(entries))
   }
@@ -929,9 +889,10 @@ func entriesByAccountIdError(
     t *testing.T,
     store findb.EntriesByAccountIdRunner,
     acct_id int64) error {
-  ebb := consumers.NewEntryBalanceBuffer(10)
+  var entries []fin.EntryBalance
   account := fin.Account{}
-  return store.EntriesByAccountId(nil, acct_id, &account, ebb)
+  return store.EntriesByAccountId(
+      nil, acct_id, &account, goconsume.AppendTo(&entries))
 }
     
 func verifyUnreconciledEntries(
@@ -939,14 +900,14 @@ func verifyUnreconciledEntries(
     store findb.UnreconciledEntriesRunner,
     acct_id int64,
     expected_number int) {
-  eb := consumers.NewEntryBuffer(2 * expected_number + 1)
+  var entries []fin.Entry
   account := fin.Account{}
-  err := store.UnreconciledEntries(nil, acct_id, &account, eb)
+  err := store.UnreconciledEntries(
+      nil, acct_id, &account, goconsume.AppendTo(&entries))
   if err != nil {
     t.Errorf("Got error reading database: %v", err)
     return
   }
-  entries := eb.Entries()
   if len(entries) != expected_number {
     t.Errorf("Expected %v entries, got %v", expected_number, len(entries))
   }
@@ -971,9 +932,10 @@ func unreconciledEntriesError(
     t *testing.T,
     store findb.UnreconciledEntriesRunner,
     acct_id int64) error {
-  eb := consumers.NewEntryBuffer(10)
+  var entries []fin.Entry
   account := fin.Account{}
-  return store.UnreconciledEntries(nil, acct_id, &account, eb)
+  return store.UnreconciledEntries(
+      nil, acct_id, &account, goconsume.AppendTo(&entries))
 }
 
 func verifyEntriesSorted(t *testing.T, entries []fin.Entry) {
@@ -1042,7 +1004,7 @@ func verifyEntryDates(
       nil,
       accountId,
       &account,
-      consume.AppendPtrsTo(&entries, nil)); err != nil {
+      goconsume.AppendPtrsTo(&entries)); err != nil {
     t.Fatalf("Error retrieving added entries: %v", err)
   }
   if len(expectedDates) != len(entries) {
@@ -1074,54 +1036,41 @@ func verifyEntryBalanceSorted(t *testing.T, entries []fin.EntryBalance) {
   }
 }
 
-func reconcileFunc(id int64) functional.Filterer {
-  return functional.NewFilterer(
-    func(ptr interface{}) error {
-      entry := ptr.(*fin.Entry)
-      if !entry.Reconcile(id) {
-        return functional.Skipped
-      }
-      return nil
-    })
+func reconcileFunc(id int64) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
+    entry := ptr.(*fin.Entry)
+    return entry.Reconcile(id)
+  }
 }
 
-func changeNameFunc(name string) functional.Filterer {
-  return functional.NewFilterer(
-    func(ptr interface{}) error {
-      entry := ptr.(*fin.Entry)
-      entry.Name = name
-      return nil
-    })
+func changeNameFunc(name string) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
+    entry := ptr.(*fin.Entry)
+    entry.Name = name
+    return true
+  }
 }
 
-func changeCatPaymentFunc(cp *fin.CatPayment) functional.Filterer {
-  return functional.NewFilterer(
-    func(ptr interface{}) error {
-      entry := ptr.(*fin.Entry)
-      entry.CatPayment = *cp
-      return nil
-    })
+func changeCatPaymentFunc(cp *fin.CatPayment) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
+    entry := ptr.(*fin.Entry)
+    entry.CatPayment = *cp
+    return true
+  }
 }
 
-func changeTo(new_entry *fin.Entry) functional.Filterer {
-  return functional.NewFilterer(
-    func(ptr interface{}) error {
-      p := ptr.(*fin.Entry)
-      id := p.Id
-      *p = *new_entry
-      p.Id = id
-      return nil
-    })
+func changeTo(new_entry *fin.Entry, result bool) goconsume.FilterFunc {
+  return func(ptr interface{}) bool {
+    p := ptr.(*fin.Entry)
+    id := p.Id
+    *p = *new_entry
+    p.Id = id
+    return result
+  }
 }
 
-func throwError(f functional.Filterer, e error) functional.Filterer {
-  return functional.NewFilterer(
-    func(ptr interface{}) error {
-      if f != nil {
-        f.Filter(ptr)
-      }
-      return e
-    })
+func skipUpdate(ptr interface{}) bool {
+  return false
 }
 
 func verifyEntryBalances(
@@ -1196,22 +1145,19 @@ func UserByName(t *testing.T, store UserByNameStore) {
 
 func Users(t *testing.T, store UsersStore) {
   createUsers(t, store)
-  var names []string
-  err := store.Users(nil, functional.MapConsumer(
-      consume.AppendTo(&names),
-      functional.NewMapper(func(srcPtr, destPtr interface{}) error {
-        s := srcPtr.(*fin.User)
-        d := destPtr.(*string)
-        *d = s.Name
-        return nil
-      }),
-      new(fin.User)))
+  var users []fin.User
+  err := store.Users(nil, goconsume.AppendTo(&users))
   if err != nil {
     t.Fatalf("Got error reading database: %v", err)
   }
-  expected := []string {"name1", "name2"}
-  if !reflect.DeepEqual(expected, names) {
-    t.Errorf("Expected %v, got %v", expected, names)
+  if len(users) != 2 {
+    t.Fatalf("Expected 2 users, got %v", len(users))
+  }
+  if users[0].Name != "name1" {
+    t.Errorf("Expected name1, got %v", users[0].Name)
+  }
+  if users[1].Name != "name2" {
+    t.Errorf("Expected name2, got %v", users[1].Name)
   }
 }
 

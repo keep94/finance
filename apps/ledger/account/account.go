@@ -8,8 +8,8 @@ import (
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
   "github.com/keep94/finance/fin/categories/categoriesdb"
-  "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/findb"
+  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "net/url"
@@ -93,14 +93,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   id, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
   pageNo, _ := strconv.Atoi(r.Form.Get(kPageParam))
   cds := categories.CatDetailStore{}
-  ebpb := consumers.NewEntryBalancePageBuffer(h.PageSize, pageNo)
+  var entryBalances []fin.EntryBalance
+  var morePages bool
+  consumer := goconsume.Page(pageNo, h.PageSize, &entryBalances, &morePages)
   account := fin.Account{}
   err := h.Doer.Do(func(t db.Transaction) (err error) {
     cds, err = h.Cdc.Get(t)
     if err != nil {
       return
     }
-    return h.Store.EntriesByAccountId(t, id, &account, ebpb)
+    err = h.Store.EntriesByAccountId(t, id, &account, consumer)
+    if err != nil {
+      return
+    }
+    consumer.Finalize()
+    return
   })
   if err == findb.NoSuchId {
     fmt.Fprintln(w, "No such account.")
@@ -118,21 +125,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       w,
       kTemplate,
       &view{
-          Pager: http_util.Pager{
-              PageBuffer: ebpb.PageBuffer,
+          PageBreadCrumb: http_util.PageBreadCrumb{
               URL: r.URL,
-              PageNoParam: kPageParam},
+              PageNoParam: kPageParam,
+              PageNo: pageNo,
+              End: !morePages,
+          },
+          Values: entryBalances,
           CatLinker: common.CatLinker{Cds: cds, ListEntries: listEntriesUrl},
           EntryLinker: common.EntryLinker{r.URL},
           Account: accountWrapper{&account}})
 }
 
 type view struct {
-  http_util.Pager
+  http_util.PageBreadCrumb
   common.CatLinker
   common.AccountLinker
   common.EntryLinker
   Account accountWrapper
+  Values []fin.EntryBalance
 }
 
 type accountWrapper struct {

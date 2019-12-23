@@ -10,7 +10,7 @@ import (
   "github.com/keep94/finance/fin/categories"
   "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "net/url"
@@ -184,7 +184,7 @@ var (
 // Store methods are from fin.Store
 type Store interface {
   findb.DoEntryChangesRunner
-  findb.EntryByIdWithEtagRunner
+  findb.EntryByIdRunner
 }
 
 type Handler struct {
@@ -219,7 +219,7 @@ func (h *Handler) doPost(
     // Do nothing
   } else {
     // Save button
-    var mutation functional.Filterer
+    var mutation goconsume.FilterFunc
     mutation, err = common.EntryMutation(r.Form)
     if err == nil {
       if isIdValid(id) {
@@ -227,7 +227,7 @@ func (h *Handler) doPost(
         err = updateId(id, tag, mutation, store)
       } else {
         entry := fin.Entry{}
-        mutation.Filter(&entry)
+        mutation(&entry)
         // If user changed date since last submission check if that date is
         // reasonable.
         if r.Form.Get("last_date") != r.Form.Get("date") {
@@ -265,18 +265,18 @@ func (h *Handler) doGet(
     w http.ResponseWriter,
     r *http.Request,
     id, paymentId int64,
-    store findb.EntryByIdWithEtagRunner,
+    store findb.EntryByIdRunner,
     cdc categoriesdb.Getter) {
   var v *common.SingleEntryView
   if isIdValid(id) {
-    var entryWithEtag fin.EntryWithEtag
+    var entryWithEtag fin.Entry
     var cds categories.CatDetailStore
     err := h.Doer.Do(func(t db.Transaction) (err error) {
       cds, err = cdc.Get(t)
       if err != nil {
         return
       }
-      return store.EntryByIdWithEtag(t, id, &entryWithEtag)
+      return store.EntryById(t, id, &entryWithEtag)
     })
     if err == findb.NoSuchId {
       fmt.Fprintln(w, "No entry found.")
@@ -287,8 +287,7 @@ func (h *Handler) doGet(
       return
     }
     v = common.ToSingleEntryView(
-        &entryWithEtag.Entry,
-        entryWithEtag.Etag,
+        &entryWithEtag,
         common.NewXsrfToken(r, kSingle),
         cds)
   } else {
@@ -321,10 +320,10 @@ func deleteId(id int64, store findb.DoEntryChangesRunner) error {
 func updateId(
     id int64,
     tag uint64,
-    mutation functional.Filterer,
+    mutation goconsume.FilterFunc,
     store findb.DoEntryChangesRunner) error {
   changes := findb.EntryChanges{
-      Updates: map[int64]functional.Filterer{ id: mutation},
+      Updates: map[int64]goconsume.FilterFunc{ id: mutation},
       Etags: map[int64]uint64{ id: tag}}
   return store.DoEntryChanges(nil, &changes)
 }

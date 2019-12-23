@@ -11,7 +11,7 @@ import (
   "github.com/keep94/finance/fin/categories"
   "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "net/url"
@@ -202,13 +202,13 @@ var (
 // Store methods are from fin.Store
 type Store interface {
   findb.AddRecurringEntryRunner
-  findb.RecurringEntryByIdWithEtagRunner
+  findb.RecurringEntryByIdRunner
   findb.UpdateRecurringEntryRunner
   findb.RemoveRecurringEntryByIdRunner
 }
 
 type UpdateRecurringEntryRunner interface {
-  findb.RecurringEntryByIdWithEtagRunner
+  findb.RecurringEntryByIdRunner
   findb.UpdateRecurringEntryRunner
 }
 
@@ -244,7 +244,7 @@ func (h *Handler) doPost(
     // Do nothing
   } else {
     // Save button
-    var mutation functional.Filterer
+    var mutation goconsume.FilterFunc
     mutation, err = entryMutation(r.Form)
     if err == nil {
       if isIdValid(id) {
@@ -252,7 +252,7 @@ func (h *Handler) doPost(
         err = h.updateId(id, tag, mutation, store)
       } else {
         var entry fin.RecurringEntry
-        mutation.Filter(&entry)
+        mutation(&entry)
         // If user changed date since last submission check if that date is
         // reasonable.
         if r.Form.Get("last_date") != r.Form.Get("date") {
@@ -290,18 +290,18 @@ func (h *Handler) doGet(
     w http.ResponseWriter,
     r *http.Request,
     id, paymentId int64,
-    store findb.RecurringEntryByIdWithEtagRunner,
+    store findb.RecurringEntryByIdRunner,
     cdc categoriesdb.Getter) {
   var v *view
   if isIdValid(id) {
-    var entryWithEtag fin.RecurringEntryWithEtag
+    var entryWithEtag fin.RecurringEntry
     var cds categories.CatDetailStore
     err := h.Doer.Do(func(t db.Transaction) (err error) {
       cds, err = cdc.Get(t)
       if err != nil {
         return
       }
-      return store.RecurringEntryByIdWithEtag(t, id, &entryWithEtag)
+      return store.RecurringEntryById(t, id, &entryWithEtag)
     })
     if err == findb.NoSuchId {
       fmt.Fprintln(w, "No entry found.")
@@ -312,8 +312,7 @@ func (h *Handler) doGet(
       return
     }
     v = toView(
-        &entryWithEtag.RecurringEntry,
-        entryWithEtag.Etag,
+        &entryWithEtag,
         common.NewXsrfToken(r, kRecurringSingle),
         cds)
   } else {
@@ -336,19 +335,19 @@ func (h *Handler) isDateReasonable(date time.Time) bool {
 func (h *Handler) updateId(
     id int64,
     tag uint64,
-    mutation functional.Filterer,
+    mutation goconsume.FilterFunc,
     store UpdateRecurringEntryRunner) error {
   return h.Doer.Do(func(t db.Transaction) (err error) {
-    var entryWithEtag fin.RecurringEntryWithEtag
-    if err = store.RecurringEntryByIdWithEtag(t, id, &entryWithEtag); err != nil {
+    var entryWithEtag fin.RecurringEntry
+    if err = store.RecurringEntryById(t, id, &entryWithEtag); err != nil {
       return
     }
     if tag != entryWithEtag.Etag {
       err = findb.ConcurrentUpdate
       return
     }
-    mutation.Filter(&entryWithEtag.RecurringEntry)
-    return store.UpdateRecurringEntry(t, &entryWithEtag.RecurringEntry)
+    mutation(&entryWithEtag)
+    return store.UpdateRecurringEntry(t, &entryWithEtag)
   })
 }
 
@@ -363,12 +362,11 @@ func isIdValid(id int64) bool {
 
 func toView(
     entry *fin.RecurringEntry,
-    tag uint64,
     xsrf string,
     cds categories.CatDetailStore) *view {
   result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
   result.SingleEntryView = common.ToSingleEntryView(
-      &entry.Entry, tag, xsrf, cds)
+      &entry.Entry, xsrf, cds)
   result.Set("count", strconv.Itoa(entry.Period.Count))
   result.Set("unit", strconv.Itoa(entry.Period.Unit.ToInt()))
   if entry.Period.DayOfMonth > 0 {
@@ -393,8 +391,9 @@ func toViewFromForm(
   return result
 }
 
-func entryMutation(values url.Values) (mutation functional.Filterer, err error) {
-  var entryFilterer functional.Filterer
+func entryMutation(values url.Values) (
+    mutation goconsume.FilterFunc, err error) {
+  var entryFilterer goconsume.FilterFunc
   if entryFilterer, err = common.EntryMutation(values); err != nil {
     return
   }
@@ -454,19 +453,19 @@ func entryMutation(values url.Values) (mutation functional.Filterer, err error) 
   }
   if unit == fin.Months && dayOfMonth == 0 {
     var temp fin.Entry
-    entryFilterer.Filter(&temp)
+    entryFilterer(&temp)
     dayOfMonth = temp.Date.Day()
   }
-  mutation = functional.NewFilterer(func(ptr interface{}) error {
+  mutation = func(ptr interface{}) bool {
     p := ptr.(*fin.RecurringEntry)
-    entryFilterer.Filter(&p.Entry)
+    entryFilterer(&p.Entry)
     p.CheckNo = ""
     p.Period.Count = count
     p.Period.Unit = unit
     p.Period.DayOfMonth = dayOfMonth
     p.NumLeft = numLeft
-    return nil
-  })
+    return true
+  }
   return
 }
 

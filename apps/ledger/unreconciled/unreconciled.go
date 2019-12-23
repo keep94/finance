@@ -7,10 +7,8 @@ import (
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/gofunctional3/consume"
-  "github.com/keep94/gofunctional3/functional"
+  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "strconv"
@@ -98,15 +96,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     editId, _ := strconv.ParseInt(r.Form.Get("edit_id"), 10, 64)
     // Alter DB only if xsrf token is valid
     if common.VerifyXsrfToken(r, kUnreconciled) {
-      reconciler := functional.NewFilterer(func(ptr interface{}) error {
+      reconciler := func(ptr interface{}) bool {
         p := ptr.(*fin.Entry)
-        if p.Reconcile(acctId) {
-          return nil
-        }
-        return functional.Skipped
-      })
+        return p.Reconcile(acctId)
+      }
       ids := r.Form["id"]
-      updates := make(map[int64]functional.Filterer, len(ids))
+      updates := make(map[int64]goconsume.FilterFunc, len(ids))
       for _, idStr := range ids {
         id, _ := strconv.ParseInt(idStr, 10, 64)
         updates[id] = reconciler
@@ -130,11 +125,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     }
   }
   cds := categories.CatDetailStore{}
-  buffer := consumers.NewEntryBuffer(h.PageSize)
+  entries := make([]fin.Entry, 0, h.PageSize)
+  consumer := goconsume.AppendTo(&entries)
+  consumer = goconsume.Slice(consumer, 0, h.PageSize)
   account := fin.Account{}
   err := h.Doer.Do(func(t db.Transaction) (err error) {
     cds, _ = cache.Get(t)
-    return store.UnreconciledEntries(t, acctId, &account, buffer)
+    return store.UnreconciledEntries(t, acctId, &account, consumer)
   })
   if err == findb.NoSuchId {
     fmt.Fprintln(w, "No such account.")
@@ -148,7 +145,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       w,
       kTemplate,
       &view{
-          buffer.Buffer,
+          entries,
           common.CatDisplayer{cds},
           common.EntryLinker{r.URL},
           common.NewXsrfToken(r, kUnreconciled),
@@ -156,7 +153,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type view struct {
-  *consume.Buffer
+  Values []fin.Entry
   common.CatDisplayer
   common.EntryLinker
   Xsrf string
