@@ -30,6 +30,29 @@ func FromEntryAggregator(
   return entryAggregatorConsumer{aggregator: aggregator}
 }
 
+// AddBalance is a consumer of Entry values that passes on EntryBalance
+// values. AddBalance consumes Entry values newest to oldest passing on
+// each Entry value along with the current balance.
+type AddBalance struct {
+  // ending balance
+  Balance int64
+  // EntryBalance values passed on here
+  EntryBalanceConsumer goconsume.Consumer
+  entryBalance fin.EntryBalance
+}
+
+func (c *AddBalance) CanConsume() bool {
+  return c.EntryBalanceConsumer.CanConsume()
+}
+
+func (c *AddBalance) Consume(ptr interface{}) {
+  p := ptr.(*fin.Entry)
+  c.entryBalance.Entry = *p
+  c.entryBalance.Balance = c.Balance
+  c.Balance -= p.Total()
+  c.EntryBalanceConsumer.Consume(&c.entryBalance)
+}
+
 type entryAggregatorConsumer struct {
   aggregator EntryAggregator
 }

@@ -5,7 +5,6 @@ import (
   "errors"
   "fmt"
   "github.com/keep94/appcommon/passwords"
-  "github.com/keep94/goconsume"
   "math"
   "sort"
   "strconv"
@@ -524,27 +523,6 @@ func (a AccountSet) Include(catPayment *CatPayment) {
     }
   }
   a[catPayment.id] = true
-}
-
-//  Consumer of Entry passing onto consumer of EntryBalance.
-type AddBalanceConsumer struct {
-  // ending balance
-  Balance int64
-  // original Stream of Entry
-  BalanceConsumer goconsume.Consumer
-  entryBalance EntryBalance
-}
-
-func (c *AddBalanceConsumer) CanConsume() bool {
-  return c.BalanceConsumer.CanConsume()
-}
-
-func (c *AddBalanceConsumer) Consume(ptr interface{}) {
-  p := ptr.(*Entry)
-  c.entryBalance.Entry = *p
-  c.entryBalance.Balance = c.Balance
-  c.Balance -= p.Total()
-  c.BalanceConsumer.Consume(&c.entryBalance)
 }
 
 // Permission represents a user's permission to the database

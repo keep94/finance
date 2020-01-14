@@ -9,6 +9,7 @@ import (
   "github.com/keep94/appcommon/db/sqlite_rw"
   "github.com/keep94/appcommon/passwords"
   "github.com/keep94/finance/fin"
+  "github.com/keep94/finance/fin/consumers"
   "github.com/keep94/finance/fin/findb"
   "github.com/keep94/goconsume"
   "github.com/keep94/gosqlite/sqlite"
@@ -134,8 +135,8 @@ func entriesByAccountId(conn *sqlite.Conn, acctId int64, account *fin.Account, c
     return err
   }
   defer stmt.Finalize()
-  consumer = &fin.AddBalanceConsumer{
-      Balance: account.Balance, BalanceConsumer: consumer}
+  consumer = &consumers.AddBalance{
+      Balance: account.Balance, EntryBalanceConsumer: consumer}
   consumer = goconsume.Slice(consumer, 0, account.Count)
   consumer = goconsume.ModFilter(
       consumer,
