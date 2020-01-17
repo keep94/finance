@@ -458,7 +458,8 @@ func applyRecurringEntriesDryRun(
         err error) {
   consumer := goconsume.AppendPtrsTo(&recurringEntriesToUpdate)
   if acctId != 0 {
-    consumer = goconsume.Filter(consumer, accountFilter(acctId))
+    consumer = goconsume.ModFilter(
+        consumer, accountFilter(acctId), (*fin.RecurringEntry)(nil))
   }
   if err = store.RecurringEntries(t, consumer); err != nil {
     return
