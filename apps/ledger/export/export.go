@@ -131,13 +131,12 @@ func (h *Handler) doPost(
     csvWriter.Write(columns[:])
   })
   consumer = goconsume.Slice(consumer, 0, kMaxLines + 1)
-  consumer = goconsume.ModFilter(
+  consumer = goconsume.Filter(
     consumer,
     func(ptr interface{}) bool {
       p := ptr.(*fin.Entry)
       return p.WithPayment(acctId)
-    },
-    (*fin.Entry)(nil))
+    })
   err = h.Store.Entries(nil, elo, consumer)
   if err == nil && !consumer.CanConsume() {
     err = errors.New("File too big. Try a smaller date range")

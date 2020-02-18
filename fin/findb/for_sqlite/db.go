@@ -138,13 +138,12 @@ func entriesByAccountId(conn *sqlite.Conn, acctId int64, account *fin.Account, c
   consumer = &consumers.AddBalance{
       Balance: account.Balance, EntryBalanceConsumer: consumer}
   consumer = goconsume.Slice(consumer, 0, account.Count)
-  consumer = goconsume.ModFilter(
+  consumer = goconsume.Filter(
       consumer,
       func(ptr interface{}) bool {
         p := ptr.(*fin.Entry)
         return p.WithPayment(acctId)
-      },
-      (*fin.Entry)(nil))
+      })
   return sqlite_rw.ReadRows((&rawEntry{}).init(&fin.Entry{}), stmt, consumer)
 }
 
@@ -161,13 +160,12 @@ func unreconciledEntries(conn *sqlite.Conn, acctId int64, account *fin.Account, 
   }
   defer stmt.Finalize()
   consumer = goconsume.Slice(consumer, 0, account.Count - account.RCount)
-  consumer = goconsume.ModFilter(
+  consumer = goconsume.Filter(
       consumer,
       func(ptr interface{}) bool {
         p := ptr.(*fin.Entry)
         return p.WithPayment(acctId) && !p.Reconciled()
-      },
-      (*fin.Entry)(nil))
+      })
   return sqlite_rw.ReadRows((&rawEntry{}).init(&fin.Entry{}), stmt, consumer)
 }
 

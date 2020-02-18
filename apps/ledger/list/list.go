@@ -223,9 +223,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   if filter != nil {
     if sdPtr != nil {
       totaler = &aggregators.Totaler{}
-      cr = goconsume.Compose(consumers.FromCatPaymentAggregator(totaler), cr)
+      cr = goconsume.Compose(
+          []goconsume.Consumer{
+              consumers.FromCatPaymentAggregator(totaler),
+              cr,
+          }, (*fin.Entry)(nil))
     }
-    cr = goconsume.ModFilter(cr, filter, (*fin.Entry)(nil))
+    cr = goconsume.Filter(cr, filter)
   }
   var elo *findb.EntryListOptions
   if sderr != nil || ederr != nil {

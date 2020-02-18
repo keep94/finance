@@ -42,8 +42,11 @@ func main() {
         t,
         nil,
         goconsume.Compose(
-            consumers.FromCatPaymentAggregator(totals),
-            consumers.FromCatPaymentAggregator(allAccounts)))
+            []goconsume.Consumer{
+                consumers.FromCatPaymentAggregator(totals),
+                consumers.FromCatPaymentAggregator(allAccounts),
+            },
+            (*fin.Entry)(nil)))
     if err != nil {
       return err
     }

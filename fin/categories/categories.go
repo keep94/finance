@@ -695,7 +695,6 @@ func (c *AccountDetailConsumer) CanConsume() bool {
   return true
 }
 
-// Consume does the populating. s is a Stream of Account values.
 func (c *AccountDetailConsumer) Consume(ptr interface{}) {
   account := ptr.(*fin.Account)
   c.Builder.AddAccount(account)

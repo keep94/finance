@@ -235,13 +235,15 @@ func (h *Handler) singleCat(
   // Only to see what the child categories are
   ct := make(fin.CatTotals)
   totals := createByPeriodTotaler(start, end, isYearly)
-  cr := goconsume.ModFilter(
+  cr := goconsume.Filter(
       goconsume.Compose(
-          consumers.FromCatPaymentAggregator(ct),
-          consumers.FromEntryAggregator(totals)),
+          []goconsume.Consumer{
+              consumers.FromCatPaymentAggregator(ct),
+              consumers.FromEntryAggregator(totals),
+          },
+          (*fin.Entry)(nil)),
       filters.CompileAdvanceSearchSpec(
-          &filters.AdvanceSearchSpec{CF: cds.Filter(cat, !topOnly)}),
-      (*fin.Entry)(nil))
+          &filters.AdvanceSearchSpec{CF: cds.Filter(cat, !topOnly)}))
   elo := findb.EntryListOptions{
       Start: &start,
       End: &end}
@@ -297,17 +299,20 @@ func (h *Handler) allCats(
   expenseTotals := createByPeriodTotaler(start, end, isYearly)
   incomeTotals := createByPeriodTotaler(start, end, isYearly)
   cr := goconsume.Compose(
-      consumers.FromCatPaymentAggregator(ct),
-      goconsume.ModFilter(
-          consumers.FromEntryAggregator(expenseTotals),
-          filters.CompileAdvanceSearchSpec(
-              &filters.AdvanceSearchSpec{CF: cds.Filter(fin.Expense, true)}),
-          (*fin.Entry)(nil)),
-      goconsume.ModFilter(
-          consumers.FromEntryAggregator(incomeTotals),
-          filters.CompileAdvanceSearchSpec(
-              &filters.AdvanceSearchSpec{CF: cds.Filter(fin.Income, true)}),
-          (*fin.Entry)(nil)))
+      []goconsume.Consumer{
+          consumers.FromCatPaymentAggregator(ct),
+          goconsume.Filter(
+              consumers.FromEntryAggregator(expenseTotals),
+              filters.CompileAdvanceSearchSpec(
+                  &filters.AdvanceSearchSpec{
+                      CF: cds.Filter(fin.Expense, true)})),
+          goconsume.Filter(
+              consumers.FromEntryAggregator(incomeTotals),
+              filters.CompileAdvanceSearchSpec(
+                  &filters.AdvanceSearchSpec{
+                      CF: cds.Filter(fin.Income, true)})),
+      },
+      (*fin.Entry)(nil))
   elo := findb.EntryListOptions{
       Start: &start,
       End: &end}

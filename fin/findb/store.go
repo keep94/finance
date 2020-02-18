@@ -61,7 +61,7 @@ type DoEntryChangesRunner interface {
 type EntriesRunner interface {
   // Entries gets entries from most to least recent.
   // options is additional options for getting entries, may be nil;
-  // consumer consumes the Stream of fetched entries.
+  // consumer consumes the fin.Entry values.
   Entries(t db.Transaction, options *EntryListOptions,
       consumer goconsume.Consumer) error
 }
@@ -69,7 +69,7 @@ type EntriesRunner interface {
 type EntriesByAccountIdRunner interface {
   // EntryByAccountId gets entries by account from most to least recent.
   // acctId is the account ID; account is where
-  // Account object is stored; consumer consumes the Stream of EntryBalance
+  // Account object is stored; consumer consumes the fin.EntryBalance
   // values.
   EntriesByAccountId(t db.Transaction, acctId int64,
       account *fin.Account, consumer goconsume.Consumer) error
@@ -84,7 +84,7 @@ type UnreconciledEntriesRunner interface {
   // UnreconciledEntries gets unreconciled entries by account from most to least
   // recent.
   // acctId is the account ID; account, which can be nil, is where
-  // Account object is stored; consumer consumes the Stream of Entry values
+  // Account object is stored; consumer consumes the fin.Entry values
   UnreconciledEntries(t db.Transaction, acctId int64,
       account *fin.Account, consumer goconsume.Consumer) error
 }
@@ -458,8 +458,8 @@ func applyRecurringEntriesDryRun(
         err error) {
   consumer := goconsume.AppendPtrsTo(&recurringEntriesToUpdate)
   if acctId != 0 {
-    consumer = goconsume.ModFilter(
-        consumer, accountFilter(acctId), (*fin.RecurringEntry)(nil))
+    consumer = goconsume.Filter(
+        consumer, accountFilter(acctId))
   }
   if err = store.RecurringEntries(t, consumer); err != nil {
     return

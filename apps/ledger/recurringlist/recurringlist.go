@@ -127,13 +127,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   var entries []*fin.RecurringEntry
   consumer := goconsume.AppendPtrsTo(&entries)
   if acctId > 0 {
-    consumer = goconsume.ModFilter(
+    consumer = goconsume.Filter(
         consumer,
         func(ptr interface{}) bool {
           p := ptr.(*fin.RecurringEntry)
           return p.WithPayment(acctId)
-        },
-        (*fin.RecurringEntry)(nil))
+        })
   }
   err := store.RecurringEntries(nil, consumer)
   if err != nil {

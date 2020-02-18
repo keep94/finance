@@ -16,8 +16,10 @@ func TestAddBalance(t *testing.T) {
     Balance: 347,
     EntryBalanceConsumer: goconsume.AppendTo(&entryBalances),
   }
-  consumer.Consume(&entries[0])
-  consumer.Consume(&entries[1])
+  entry := entries[0]
+  consumer.Consume(&entry)
+  entry = entries[1]
+  consumer.Consume(&entry)
   if entryBalances[0].Balance != 347 {
     t.Errorf("Expected 347, got %v", entryBalances[0].Balance)
   }
@@ -36,8 +38,10 @@ func TestFromCatPaymentAggregator(t *testing.T) {
   }
   aggregator := catPaymentTotaler{}
   consumer := FromCatPaymentAggregator(&aggregator)
-  consumer.Consume(&entries[0])
-  consumer.Consume(&entries[1])
+  entry := entries[0]
+  consumer.Consume(&entry)
+  entry = entries[1]
+  consumer.Consume(&entry)
   if aggregator.total != 1100 {
     t.Errorf("Expected 1100, got %v", aggregator.total)
   }
@@ -50,8 +54,10 @@ func TestFromEntryAggregator(t *testing.T) {
   }
   aggregator := entryTotaler{}
   consumer := FromEntryAggregator(&aggregator)
-  consumer.Consume(&entries[0])
-  consumer.Consume(&entries[1])
+  entry := entries[0]
+  consumer.Consume(&entry)
+  entry = entries[1]
+  consumer.Consume(&entry)
   if aggregator.total != 1100 {
     t.Errorf("Expected 1100, got %v", aggregator.total)
   }

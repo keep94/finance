@@ -158,10 +158,9 @@ func newDateFilter(start, end time.Time) goconsume.FilterFunc {
 func newConsumer(
     filter goconsume.FilterFunc,
     total *aggregators.Totaler) goconsume.Consumer {
-  return goconsume.ModFilter(
+  return goconsume.Filter(
       consumers.FromCatPaymentAggregator(total),
-      filter,
-      (*fin.Entry)(nil))
+      filter)
 }
 
 func byCatFilterer(
@@ -232,7 +231,7 @@ func (r *reporter) ComputeTotals(spec []*graphSpec, start, end time.Time) []*agg
 }
 
 func (r *reporter) ToConsumer() goconsume.Consumer {
-  return goconsume.Compose(r.takers...)
+  return goconsume.Compose(r.takers, (*fin.Entry)(nil))
 }
 
 func toTable(gd google_graph.GraphData2D) [][]string {
