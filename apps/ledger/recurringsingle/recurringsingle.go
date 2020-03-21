@@ -221,18 +221,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
   session := common.GetUserSession(r)
   store := session.Store.(Store)
+  catPopularity := session.CatPopularity()
   id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
   paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
   if r.Method == "GET" {
-    h.doGet(w, r, id, paymentId, store, session.Cache)
+    h.doGet(w, r, id, paymentId, store, session.Cache, catPopularity)
   } else {
-    h.doPost(w, r, id, store, session.Cache)
+    h.doPost(w, r, id, store, session.Cache, catPopularity)
   }
 }
 
 func (h *Handler) doPost(
     w http.ResponseWriter, r *http.Request, id int64,
-    store Store, cdc categoriesdb.Getter) {
+    store Store, cdc categoriesdb.Getter, catPopularity fin.CatPopularity) {
   var err error
   if !common.VerifyXsrfToken(r, kRecurringSingle) {
     err = common.ErrXsrf
@@ -280,6 +281,7 @@ func (h *Handler) doPost(
             r.Form,
             common.NewXsrfToken(r, kRecurringSingle),
             cds,
+            catPopularity,
             err))
   } else {
     http_util.Redirect(w, r, r.Form.Get("prev"))
@@ -291,7 +293,8 @@ func (h *Handler) doGet(
     r *http.Request,
     id, paymentId int64,
     store findb.RecurringEntryByIdRunner,
-    cdc categoriesdb.Getter) {
+    cdc categoriesdb.Getter,
+    catPopularity fin.CatPopularity) {
   var v *view
   if isIdValid(id) {
     var entryWithEtag fin.RecurringEntry
@@ -314,7 +317,8 @@ func (h *Handler) doGet(
     v = toView(
         &entryWithEtag,
         common.NewXsrfToken(r, kRecurringSingle),
-        cds)
+        cds,
+        catPopularity)
   } else {
     cds, _ := cdc.Get(nil)
     values := make(url.Values)
@@ -322,7 +326,12 @@ func (h *Handler) doGet(
       values.Set("payment", strconv.FormatInt(paymentId, 10))
     }
     v = toViewFromForm(
-        false, values, common.NewXsrfToken(r, kRecurringSingle), cds, nil)
+        false,
+        values,
+        common.NewXsrfToken(r, kRecurringSingle),
+        cds,
+        catPopularity,
+        nil)
   }
   http_util.WriteTemplate(w, kTemplate, v)
 }
@@ -363,10 +372,11 @@ func isIdValid(id int64) bool {
 func toView(
     entry *fin.RecurringEntry,
     xsrf string,
-    cds categories.CatDetailStore) *view {
+    cds categories.CatDetailStore,
+    catPopularity fin.CatPopularity) *view {
   result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
   result.SingleEntryView = common.ToSingleEntryView(
-      &entry.Entry, xsrf, cds)
+      &entry.Entry, xsrf, cds, catPopularity)
   result.Set("count", strconv.Itoa(entry.Period.Count))
   result.Set("unit", strconv.Itoa(entry.Period.Unit.ToInt()))
   if entry.Period.DayOfMonth > 0 {
@@ -384,10 +394,11 @@ func toViewFromForm(
     values url.Values,
     xsrf string,
     cds categories.CatDetailStore,
+    catPopularity fin.CatPopularity,
     err error) *view {
   result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
   result.SingleEntryView = common.ToSingleEntryViewFromForm(
-      existingEntry, values, xsrf, cds, err)
+      existingEntry, values, xsrf, cds, catPopularity, err)
   return result
 }
 

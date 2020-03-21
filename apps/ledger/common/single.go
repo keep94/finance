@@ -37,11 +37,17 @@ type SingleEntryView struct {
   Error error
   Xsrf string
   ExistingEntry bool
+  catPopularity fin.CatPopularity
+}
+
+func (v *SingleEntryView) ActiveCatDetails(
+    showAccounts bool) []categories.CatDetail {
+  return ActiveCatDetails(v.CatDetailStore, v.catPopularity, showAccounts)
 }
 
 // DateMayBeWrong returns true if and only if the error for this view is
 // ErrDateMayBeWrong.
-func (v SingleEntryView) DateMayBeWrong() bool {
+func (v *SingleEntryView) DateMayBeWrong() bool {
   return v.Error == ErrDateMayBeWrong
 }
 
@@ -70,14 +76,16 @@ func (s EntrySplitType) ReconcileParam() string {
 func ToSingleEntryView(
     entry *fin.Entry,
     xsrf string,
-    cds categories.CatDetailStore) *SingleEntryView {
+    cds categories.CatDetailStore,
+    catPopularity fin.CatPopularity) *SingleEntryView {
   result := &SingleEntryView{
       Values: http_util.Values{make(url.Values)},
       CatDisplayer: CatDisplayer{cds},
       Splits: entrySplits,
       Error: nil,
       Xsrf: xsrf,
-      ExistingEntry: true}
+      ExistingEntry: true,
+      catPopularity: catPopularity}
   result.Set("etag", strconv.FormatUint(entry.Etag, 10))
   result.Set("name", entry.Name)
   result.Set("desc", entry.Desc)
@@ -108,12 +116,14 @@ func ToSingleEntryView(
 // false if it represents a brand new entry.
 // values are the form values.
 // cds is the category detail store.
+// catPopularity is the popularity of the categories. May be nil.
 // err is the error from the form submission or nil if no error.
 func ToSingleEntryViewFromForm(
     existingEntry bool,
     values url.Values,
     xsrf string,
     cds categories.CatDetailStore,
+    catPopularity fin.CatPopularity,
     err error) *SingleEntryView {
   return &SingleEntryView{
       Values: http_util.Values{values},
@@ -121,7 +131,8 @@ func ToSingleEntryViewFromForm(
       Splits: entrySplits,
       Error: err,
       Xsrf: xsrf,
-      ExistingEntry: existingEntry}
+      ExistingEntry: existingEntry,
+      catPopularity: catPopularity}
 }
 
 // EntryMutation converts the form values from a single entry page into

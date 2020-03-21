@@ -185,6 +185,7 @@ var (
 type Store interface {
   findb.DoEntryChangesRunner
   findb.EntryByIdRunner
+  findb.EntriesRunner
 }
 
 type Handler struct {
@@ -196,18 +197,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
   session := common.GetUserSession(r)
   store := session.Store.(Store)
+  catPopularity := session.CatPopularity()
   id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
   paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
   if r.Method == "GET" {
-    h.doGet(w, r, id, paymentId, store, session.Cache)
+    h.doGet(w, r, id, paymentId, store, session.Cache, catPopularity)
   } else {
-    h.doPost(w, r, id, store, session.Cache)
+    h.doPost(w, r, id, store, session.Cache, catPopularity)
   }
 }
 
 func (h *Handler) doPost(
     w http.ResponseWriter, r *http.Request, id int64,
-    store Store, cdc categoriesdb.Getter) {
+    store Store, cdc categoriesdb.Getter, catPopularity fin.CatPopularity) {
   var err error
   if !common.VerifyXsrfToken(r, kSingle) {
     err = common.ErrXsrf
@@ -255,6 +257,7 @@ func (h *Handler) doPost(
             r.Form,
             common.NewXsrfToken(r, kSingle),
             cds,
+            catPopularity,
             err))
   } else {
     http_util.Redirect(w, r, r.Form.Get("prev"))
@@ -266,7 +269,8 @@ func (h *Handler) doGet(
     r *http.Request,
     id, paymentId int64,
     store findb.EntryByIdRunner,
-    cdc categoriesdb.Getter) {
+    cdc categoriesdb.Getter,
+    catPopularity fin.CatPopularity) {
   var v *common.SingleEntryView
   if isIdValid(id) {
     var entryWithEtag fin.Entry
@@ -289,7 +293,8 @@ func (h *Handler) doGet(
     v = common.ToSingleEntryView(
         &entryWithEtag,
         common.NewXsrfToken(r, kSingle),
-        cds)
+        cds,
+        catPopularity)
   } else {
     cds, _ := cdc.Get(nil)
     values := make(url.Values)
@@ -297,7 +302,12 @@ func (h *Handler) doGet(
       values.Set("payment", strconv.FormatInt(paymentId, 10))
     }
     v = common.ToSingleEntryViewFromForm(
-        false, values, common.NewXsrfToken(r, kSingle), cds, nil)
+        false,
+        values,
+        common.NewXsrfToken(r, kSingle),
+        cds,
+        catPopularity,
+        nil)
   }
   http_util.WriteTemplate(w, kTemplate, v)
 }

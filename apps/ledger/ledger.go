@@ -66,6 +66,7 @@ var (
   fTitle string
   fGmailConfig string
   fLinks bool
+  fPopularity bool
 )
 
 var (
@@ -116,12 +117,16 @@ func main() {
             Store: kStore,
             LO: kLockout,
             Mailer: kMailer,
-            Recipients: kGmailConfig.To})
+            Recipients: kGmailConfig.To,
+            PopularityOn: fPopularity})
   } else {
     http.Handle(
         "/auth/login",
         &login.Handler{
-            Doer: kDoer, SessionStore: kSessionStore, Store: kStore})
+            Doer: kDoer,
+            SessionStore: kSessionStore,
+            Store: kStore,
+            PopularityOn: fPopularity})
   }
   http.Handle(
       "/fin/", &authHandler{mux})
@@ -246,6 +251,11 @@ func init() {
   flag.StringVar(&fTitle, "title", "Finances", "Application title")
   flag.StringVar(&fGmailConfig, "gmail_config", "", "Gmail config file path")
   flag.BoolVar(&fLinks, "links", false, "Show categories as links in listings")
+  flag.BoolVar(
+      &fPopularity,
+      "popularity",
+      false,
+      "Show most popular categories first in dropdowns")
 }
 
 func setupDb(filepath string) {

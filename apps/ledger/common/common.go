@@ -24,6 +24,9 @@ import (
 const (
   // Set to the same thing as kSessionTimeout in ledger.go
   kXsrfTimeout = 15 * time.Minute
+
+  kMostPopularRatio = 0.34
+  kMaxMostPopular = 5
 )
 
 var (
@@ -138,6 +141,24 @@ func (s *UserSession) SetUser(userPtr interface{}) {
   s.User = userPtr.(*fin.User)
 }
 
+// CatPopularity returns the category popularities
+func (s *UserSession) CatPopularity() fin.CatPopularity {
+  result := s.Values[kCatPopularityKey]
+  if result == nil {
+    return nil
+  }
+  return result.(fin.CatPopularity)
+}
+
+// SetCatPopularity stores the category popularities in the session.
+// Passing nil for cp indicates there are not category popularities.
+func (s *UserSession) SetCatPopularity(cp fin.CatPopularity) {
+  if cp == nil {
+    delete(s.Values, kCatPopularityKey)
+  } else {
+    s.Values[kCatPopularityKey] = cp
+  }
+}
 // Batch returns the uploaded batch for a particular account ID. Batch
 // returns nil if there is no pending batch.
 func (s *UserSession) Batch(acctId int64) autoimport.Batch {
@@ -300,6 +321,22 @@ func (c *CatLinker) AccountNameLink(cp *fin.CatPayment) LinkText {
   }
 }
 
+// ActiveCatDetails returns the active cat details prepended with the most
+// popular ones. catPopularity is the popularity of the categories.
+// If showAccounts is true, ActiveCatDetails returns values for accounts too.
+// If catPopularity is nil, ActiveCatDetails simply returns the active cat
+// details without prepending the most popular ones.
+func ActiveCatDetails(
+    cds categories.CatDetailStore,
+    catPopularity fin.CatPopularity,
+    showAccounts bool) []categories.CatDetail {
+  return categories.MostPopularFirst(
+      cds.ActiveCatDetails(showAccounts),
+      catPopularity,
+      kMostPopularRatio,
+      kMaxMostPopular)
+}
+
 // CatDisplayer is used to display categories.
 type CatDisplayer struct {
   categories.CatDetailStore
@@ -382,6 +419,12 @@ func formatDate(t time.Time) string {
 }
 
 type sessionBatchKeyType int64
+
+type sessionKeyType int
+
+const (
+  kCatPopularityKey sessionKeyType = iota
+)
 
 type catSelectModel struct {
   categories.CatDetailStore

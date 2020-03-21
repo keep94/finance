@@ -17,6 +17,7 @@ import (
 
 const (
   kBadLoginMsg = "Login incorrect."
+  kCatPopularityMaxEntriesToRead = 100
 )
 
 var (
@@ -56,13 +57,19 @@ type Sender interface {
   Send(email mailer.Email)
 }
 
+type Store interface {
+  findb.UpdateUserByNameRunner
+  findb.EntriesRunner
+}
+
 type Handler struct {
   Doer db.Doer
   SessionStore sessions.Store
-  Store findb.UpdateUserByNameRunner
+  Store Store
   LO *lockout.Lockout
   Mailer Sender
   Recipients []string
+  PopularityOn bool
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -107,6 +114,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     session.SetUserId(user.Id)
     if !user.LastLogin.IsZero() {
       session.SetLastLogin(user.LastLogin)
+    }
+    if h.PopularityOn {
+      var catPopularity fin.CatPopularity
+      consumer := fin.BuildCatPopularity(
+          kCatPopularityMaxEntriesToRead, &catPopularity)
+      h.Store.Entries(nil, nil, consumer)
+      consumer.Finalize()
+      session.SetCatPopularity(catPopularity)
     }
     session.ID = ""  // For added security, force a new session ID
     session.Save(r, w)

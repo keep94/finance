@@ -155,6 +155,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   session := common.GetUserSession(r)
   store := session.Store.(Store)
   cache := session.Cache
+  catPopularity := session.CatPopularity()
   message := ""
   if r.Method == "POST" {
     var err error
@@ -209,7 +210,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           common.EntryLinker{r.URL},
           entries,
           common.NewXsrfToken(r, kUnreviewed),
-          message})
+          message,
+          catPopularity})
 }
 
 type view struct {
@@ -219,6 +221,12 @@ type view struct {
   Entries []fin.Entry
   Xsrf string
   ErrorMessage string
+  catPopularity fin.CatPopularity
+}
+
+func (v *view) ActiveCatDetails(showAccounts bool) []categories.CatDetail {
+  return common.ActiveCatDetails(
+      v.CatDetailStore, v.catPopularity, showAccounts)
 }
 
 func (v *view) InProgress(status fin.ReviewStatus) bool {
