@@ -51,9 +51,15 @@ func TestCatPopularity(t *testing.T) {
   assert.Equal(1, popularities.Popularity(NewCat("0:4")))
   assert.Equal(0, popularities.Popularity(NewCat("0:2")))
 
+  // test idempotency of Finalize
+  popularities = nil
+  consumer.Finalize()
+  assert.Nil(popularities)
+
   consumer = BuildCatPopularity(3, &popularities)
   assert.True(consumer.CanConsume())
   consumer.Finalize()
+  assert.NotNil(popularities)
   assert.False(consumer.CanConsume())
   assert.Panics(func() { consumer.Consume(&entry) })
   

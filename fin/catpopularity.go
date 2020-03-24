@@ -61,9 +61,14 @@ type catPopularityConsumer struct {
   goconsume.Consumer
   popularities catPopularityMap
   result *CatPopularity
+  finalized bool
 }
 
 func (c *catPopularityConsumer) Finalize() {
+  if c.finalized {
+    return
+  }
+  c.finalized = true
   c.Consumer = goconsume.Nil()  
   *c.result = c.popularities
 }
