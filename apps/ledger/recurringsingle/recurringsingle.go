@@ -11,7 +11,6 @@ import (
   "github.com/keep94/finance/fin/categories"
   "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "net/url"
@@ -245,7 +244,7 @@ func (h *Handler) doPost(
     // Do nothing
   } else {
     // Save button
-    var mutation goconsume.FilterFunc
+    var mutation fin.RecurringEntryUpdater
     mutation, err = entryMutation(r.Form)
     if err == nil {
       if isIdValid(id) {
@@ -344,7 +343,7 @@ func (h *Handler) isDateReasonable(date time.Time) bool {
 func (h *Handler) updateId(
     id int64,
     tag uint64,
-    mutation goconsume.FilterFunc,
+    mutation fin.RecurringEntryUpdater,
     store UpdateRecurringEntryRunner) error {
   return h.Doer.Do(func(t db.Transaction) (err error) {
     var entryWithEtag fin.RecurringEntry
@@ -403,8 +402,8 @@ func toViewFromForm(
 }
 
 func entryMutation(values url.Values) (
-    mutation goconsume.FilterFunc, err error) {
-  var entryFilterer goconsume.FilterFunc
+    mutation fin.RecurringEntryUpdater, err error) {
+  var entryFilterer fin.EntryUpdater
   if entryFilterer, err = common.EntryMutation(values); err != nil {
     return
   }
@@ -467,8 +466,7 @@ func entryMutation(values url.Values) (
     entryFilterer(&temp)
     dayOfMonth = temp.Date.Day()
   }
-  mutation = func(ptr interface{}) bool {
-    p := ptr.(*fin.RecurringEntry)
+  mutation = func(p *fin.RecurringEntry) bool {
     entryFilterer(&p.Entry)
     p.CheckNo = ""
     p.Period.Count = count

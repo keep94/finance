@@ -164,7 +164,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     } else {
       _, isFinal := r.Form["final"]
       ids := r.Form["id"]
-      updates := make(map[int64]goconsume.FilterFunc, len(ids))
+      updates := make(map[int64]fin.EntryUpdater, len(ids))
       etags := make(map[int64]uint64, len(ids))
       for _, idStr := range ids {
         id, _ := strconv.ParseInt(idStr, 10, 64)
@@ -241,7 +241,7 @@ func (v *view) IdsAsJsArray(entries []fin.Entry) template.JS {
   return template.JS(fmt.Sprintf("[%s]", strings.Join(ids, ", ")))
 }
 
-func createMutation(values url.Values, id int64, isFinal bool) goconsume.FilterFunc {
+func createMutation(values url.Values, id int64, isFinal bool) fin.EntryUpdater {
   cat, caterr := fin.CatFromString(values.Get(fmt.Sprintf("cat_%d", id)))
   desc := values.Get(fmt.Sprintf("desc_%d", id))
   var status fin.ReviewStatus = fin.NotReviewed
@@ -252,8 +252,7 @@ func createMutation(values url.Values, id int64, isFinal bool) goconsume.FilterF
       status = fin.ReviewInProgress
     }
   }
-  return func(ptr interface{}) bool {
-    p := ptr.(*fin.Entry)
+  return func(p *fin.Entry) bool {
     p.Desc = desc
     if caterr != nil || p.SetSingleCat(cat) {
       p.Status = status

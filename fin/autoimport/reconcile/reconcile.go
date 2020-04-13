@@ -7,7 +7,6 @@ import (
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/autoimport/reconcile/match"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/goconsume"
   "sort"
   "time"
 )
@@ -97,7 +96,7 @@ func GetChanges(reconciled []*fin.Entry) *findb.EntryChanges {
     }
   }
   updates := make(
-      map[int64]goconsume.FilterFunc, len(entries) - 1 - existingIdx)
+      map[int64]fin.EntryUpdater, len(entries) - 1 - existingIdx)
   for idx := len(entries) - 1; idx > existingIdx; idx-- {
     updates[entries[idx].Id] = reconciler(entries[idx])
   }
@@ -119,9 +118,8 @@ func (b byDateDesc) Swap(i, j int) {
 }
 
 
-func reconciler(f *fin.Entry) goconsume.FilterFunc {
-  return func(ptr interface{}) bool {
-    p := ptr.(*fin.Entry)
+func reconciler(f *fin.Entry) fin.EntryUpdater {
+  return func(p *fin.Entry) bool {
     if p.Status != fin.Reviewed {
       p.Name = f.Name
       if p.CatRecCount() == 1 && p.CatRecByIndex(0).Cat == fin.Expense {

@@ -115,7 +115,7 @@ func (f EntryAccountFixture) AccountUpdates(t *testing.T, store AccountByIdStore
       &fin.Account{Id: 2, Name: "savings", Active: true, Balance: 2000, RBalance: 0, Count: 1, RCount: 0})
 
   changes = findb.EntryChanges{
-      Updates: map[int64]goconsume.FilterFunc {
+      Updates: map[int64]fin.EntryUpdater {
           1: reconcileFunc(2),
           2: reconcileFunc(1),
           9999: reconcileFunc(1)}}
@@ -164,7 +164,7 @@ func (f EntryAccountFixture) UpdateEntry(t *testing.T, store EntryByIdStore) {
       CatPayment: fin.NewCatPayment(fin.NewCat("0:4"), 1234, false, 1),
       Status: fin.Reviewed}
   ec = findb.EntryChanges{
-      Updates: map[int64]goconsume.FilterFunc {
+      Updates: map[int64]fin.EntryUpdater {
           entry.Id: changeTo(&new_entry, true)}}
   changeEntries(t, store, &ec)
   verifyEntries(t, store, &new_entry)
@@ -185,7 +185,7 @@ func (f EntryAccountFixture) UpdateEntrySkipped(
       CatPayment: fin.NewCatPayment(fin.NewCat("0:4"), 1234, false, 1),
       Status: fin.Reviewed}
   ec = findb.EntryChanges{
-      Updates: map[int64]goconsume.FilterFunc{
+      Updates: map[int64]fin.EntryUpdater{
           entry.Id: changeTo(&new_entry, false)}}
   changeEntries(t, store, &ec)
   verifyEntries(t, store, &entry)
@@ -368,8 +368,8 @@ func (f EntryAccountFixture) ConcurrentUpdateDetection(
   oldAmt := -entryWithEtag.Total()
   newCp := fin.NewCatPayment(fin.NewCat("2:1"), oldAmt + 132, true, 2)
   ec := findb.EntryChanges{
-    Updates: map[int64]goconsume.FilterFunc {
-        2: goconsume.All(
+    Updates: map[int64]fin.EntryUpdater {
+        2: all(
             changeNameFunc("A new name."),
             changeCatPaymentFunc(&newCp))},
     Etags: map[int64]uint64 {
@@ -379,7 +379,7 @@ func (f EntryAccountFixture) ConcurrentUpdateDetection(
     t.Errorf("Error updating database: %v", err)
   }
   ec = findb.EntryChanges{
-    Updates: map[int64]goconsume.FilterFunc {
+    Updates: map[int64]fin.EntryUpdater {
         2: changeNameFunc("Another new name.")},
     Etags: map[int64]uint64 {
         2: etag}}
@@ -420,7 +420,7 @@ func (f EntryAccountFixture) ConcurrentUpdateSkipped(
   f.createAccounts(t, store)
   createListEntries(t, store)
   ec := findb.EntryChanges{
-    Updates: map[int64]goconsume.FilterFunc {
+    Updates: map[int64]fin.EntryUpdater {
         2: skipUpdate},
     Etags: map[int64]uint64 {  // Etag doesn't match
         2: 9999}}
@@ -1036,32 +1036,34 @@ func verifyEntryBalanceSorted(t *testing.T, entries []fin.EntryBalance) {
   }
 }
 
-func reconcileFunc(id int64) goconsume.FilterFunc {
-  return func(ptr interface{}) bool {
-    entry := ptr.(*fin.Entry)
+func reconcileFunc(id int64) fin.EntryUpdater {
+  return func(entry *fin.Entry) bool {
     return entry.Reconcile(id)
   }
 }
 
-func changeNameFunc(name string) goconsume.FilterFunc {
-  return func(ptr interface{}) bool {
-    entry := ptr.(*fin.Entry)
+func all(first, second fin.EntryUpdater) fin.EntryUpdater {
+  return func(entry *fin.Entry) bool {
+    return first(entry) && second(entry)
+  }
+}
+
+func changeNameFunc(name string) fin.EntryUpdater {
+  return func(entry *fin.Entry) bool {
     entry.Name = name
     return true
   }
 }
 
-func changeCatPaymentFunc(cp *fin.CatPayment) goconsume.FilterFunc {
-  return func(ptr interface{}) bool {
-    entry := ptr.(*fin.Entry)
+func changeCatPaymentFunc(cp *fin.CatPayment) fin.EntryUpdater {
+  return func(entry *fin.Entry) bool {
     entry.CatPayment = *cp
     return true
   }
 }
 
-func changeTo(new_entry *fin.Entry, result bool) goconsume.FilterFunc {
-  return func(ptr interface{}) bool {
-    p := ptr.(*fin.Entry)
+func changeTo(new_entry *fin.Entry, result bool) fin.EntryUpdater {
+  return func(p *fin.Entry) bool {
     id := p.Id
     *p = *new_entry
     p.Id = id
@@ -1069,7 +1071,7 @@ func changeTo(new_entry *fin.Entry, result bool) goconsume.FilterFunc {
   }
 }
 
-func skipUpdate(ptr interface{}) bool {
+func skipUpdate(entry *fin.Entry) bool {
   return false
 }
 

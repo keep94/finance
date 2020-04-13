@@ -140,6 +140,10 @@ func (r *RecurringEntry) Advance(
   return
 }
 
+// RecurringEntryUpdater updates a RecurringEntry in place and returns true
+// if successful.
+type RecurringEntryUpdater func(entry *RecurringEntry) bool
+
 func withDayOfMonth(date time.Time, dayOfMonth int) time.Time {
   return time.Date(
       date.Year(), date.Month(), dayOfMonth, date.Hour(), date.Minute(),

@@ -151,7 +151,7 @@ type EntryChanges struct {
   // Adds is entries to add
   Adds []*fin.Entry
   // The key is the entry id; the value does the update in-place.
-  Updates map[int64]goconsume.FilterFunc
+  Updates map[int64]fin.EntryUpdater
   // Deletes is the ids of the entries to delete.
   Deletes []int64
   // Etags contains the etags of the entries being updated.

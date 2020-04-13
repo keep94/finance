@@ -404,6 +404,9 @@ func (e *Entry) String() string {
   return fmt.Sprintf("%v", *e)
 }
 
+// EntryUpdater updates an Entry in place and returns true if successful.
+type EntryUpdater func(entry *Entry) bool
+
 // EntryBalance is an Entry with an ending balance
 type EntryBalance struct {
   Entry

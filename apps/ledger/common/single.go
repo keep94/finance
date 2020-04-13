@@ -7,7 +7,6 @@ import (
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/goconsume"
   "net/url"
   "strconv"
   "strings"
@@ -139,7 +138,7 @@ func ToSingleEntryViewFromForm(
 // a mutation and returns that mutation or an error if the form values were
 // invalid. Returned filter always returns true.
 func EntryMutation(values url.Values) (
-    mutation goconsume.FilterFunc, err error) {
+    mutation fin.EntryUpdater, err error) {
   date, err := time.Parse(date_util.YMDFormat, values.Get("date"))
   if err != nil {
     err = errors.New("Date in wrong format.")
@@ -180,8 +179,7 @@ func EntryMutation(values url.Values) (
   }
   cp := cpb.Build()
   needReview := values.Get("need_review") != ""
-  mutation = func(ptr interface{}) bool {
-    p := ptr.(*fin.Entry)
+  mutation = func(p *fin.Entry) bool {
     p.Date = date
     p.Name = name
     p.Desc = desc

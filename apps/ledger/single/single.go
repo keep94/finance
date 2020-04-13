@@ -10,7 +10,6 @@ import (
   "github.com/keep94/finance/fin/categories"
   "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/goconsume"
   "html/template"
   "net/http"
   "net/url"
@@ -221,7 +220,7 @@ func (h *Handler) doPost(
     // Do nothing
   } else {
     // Save button
-    var mutation goconsume.FilterFunc
+    var mutation fin.EntryUpdater
     mutation, err = common.EntryMutation(r.Form)
     if err == nil {
       if isIdValid(id) {
@@ -330,10 +329,10 @@ func deleteId(id int64, store findb.DoEntryChangesRunner) error {
 func updateId(
     id int64,
     tag uint64,
-    mutation goconsume.FilterFunc,
+    mutation fin.EntryUpdater,
     store findb.DoEntryChangesRunner) error {
   changes := findb.EntryChanges{
-      Updates: map[int64]goconsume.FilterFunc{ id: mutation},
+      Updates: map[int64]fin.EntryUpdater{ id: mutation},
       Etags: map[int64]uint64{ id: tag}}
   return store.DoEntryChanges(nil, &changes)
 }

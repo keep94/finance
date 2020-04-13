@@ -3,7 +3,6 @@ package reconcile
 import (
   "github.com/keep94/appcommon/date_util"
   "github.com/keep94/finance/fin"
-  "github.com/keep94/goconsume"
   "reflect"
   "testing"
   "time"
@@ -238,7 +237,7 @@ func TestGetChanges(t *testing.T) {
   verifyFilterer(t, filterer, &e, fin.NewCat("0:73"), "Update1")
 }
 
-func verifyFilterer(t *testing.T, f goconsume.FilterFunc, e *fin.Entry, cat fin.Cat, name string) {
+func verifyFilterer(t *testing.T, f fin.EntryUpdater, e *fin.Entry, cat fin.Cat, name string) {
   if !f(e) {
     t.Error("Expected filter to succeed.")
   }

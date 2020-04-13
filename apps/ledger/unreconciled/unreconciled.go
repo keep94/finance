@@ -96,12 +96,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     editId, _ := strconv.ParseInt(r.Form.Get("edit_id"), 10, 64)
     // Alter DB only if xsrf token is valid
     if common.VerifyXsrfToken(r, kUnreconciled) {
-      reconciler := func(ptr interface{}) bool {
-        p := ptr.(*fin.Entry)
+      reconciler := func(p *fin.Entry) bool {
         return p.Reconcile(acctId)
       }
       ids := r.Form["id"]
-      updates := make(map[int64]goconsume.FilterFunc, len(ids))
+      updates := make(map[int64]fin.EntryUpdater, len(ids))
       for _, idStr := range ids {
         id, _ := strconv.ParseInt(idStr, 10, 64)
         updates[id] = reconciler
