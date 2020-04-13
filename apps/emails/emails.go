@@ -231,7 +231,7 @@ func (r *reporter) ComputeTotals(spec []*graphSpec, start, end time.Time) []*agg
 }
 
 func (r *reporter) ToConsumer() goconsume.Consumer {
-  return goconsume.Compose(r.takers, (*fin.Entry)(nil))
+  return goconsume.ComposeWithCopy(r.takers, (*fin.Entry)(nil))
 }
 
 func toTable(gd google_graph.GraphData2D) [][]string {

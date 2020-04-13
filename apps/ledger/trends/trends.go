@@ -236,7 +236,7 @@ func (h *Handler) singleCat(
   ct := make(fin.CatTotals)
   totals := createByPeriodTotaler(start, end, isYearly)
   cr := goconsume.Filter(
-      goconsume.Compose(
+      goconsume.ComposeWithCopy(
           []goconsume.Consumer{
               consumers.FromCatPaymentAggregator(ct),
               consumers.FromEntryAggregator(totals),
@@ -298,7 +298,7 @@ func (h *Handler) allCats(
   ct := make(fin.CatTotals)
   expenseTotals := createByPeriodTotaler(start, end, isYearly)
   incomeTotals := createByPeriodTotaler(start, end, isYearly)
-  cr := goconsume.Compose(
+  cr := goconsume.ComposeWithCopy(
       []goconsume.Consumer{
           consumers.FromCatPaymentAggregator(ct),
           goconsume.Filter(
