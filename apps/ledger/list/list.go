@@ -223,11 +223,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   if filter != nil {
     if sdPtr != nil {
       totaler = &aggregators.Totaler{}
-      cr = goconsume.ComposeWithCopy(
-          []goconsume.Consumer{
-              consumers.FromCatPaymentAggregator(totaler),
-              cr,
-          }, (*fin.Entry)(nil))
+      cr = goconsume.Compose(
+          consumers.FromCatPaymentAggregator(totaler),
+          cr)
     }
     cr = goconsume.Filter(cr, filter)
   }

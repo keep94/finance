@@ -236,12 +236,9 @@ func (h *Handler) singleCat(
   ct := make(fin.CatTotals)
   totals := createByPeriodTotaler(start, end, isYearly)
   cr := goconsume.Filter(
-      goconsume.ComposeWithCopy(
-          []goconsume.Consumer{
-              consumers.FromCatPaymentAggregator(ct),
-              consumers.FromEntryAggregator(totals),
-          },
-          (*fin.Entry)(nil)),
+      goconsume.Compose(
+          consumers.FromCatPaymentAggregator(ct),
+          consumers.FromEntryAggregator(totals)),
       filters.CompileAdvanceSearchSpec(
           &filters.AdvanceSearchSpec{CF: cds.Filter(cat, !topOnly)}))
   elo := findb.EntryListOptions{
