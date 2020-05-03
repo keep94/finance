@@ -82,9 +82,15 @@ var (
 {{end}}
 <html>
   <head>
+    <title>{{.Global.Title}}</title>
+    {{if .Global.Icon}}
+      <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+    {{end}}
     <link rel="stylesheet" type="text/css" href="/static/theme.css" />
   </head>
   <body>
+  {{.LeftNav}}
+  <div class="main">
   {{if .Error}}
   <span class="error">{{.Error}}</span>
   {{end}}
@@ -125,6 +131,7 @@ var (
     {{template "Graph" .}}
   {{end}}
 {{end}}
+  </div>
   </body>
 </html>`
 )
@@ -136,10 +143,16 @@ var (
 type Handler struct {
   Cdc categoriesdb.Getter
   Store findb.EntriesRunner
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
+  leftnav := h.LN.Generate(w, r, common.SelectReports())
+  if leftnav == "" {
+    return
+  }
   cds, _ := h.Cdc.Get(nil)
   start, end, err := getDateRange(r)
   if err != nil {
@@ -147,7 +160,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         Values: http_util.Values{r.Form},
         CatDisplayer: common.CatDisplayer{cds},
         CatDetails: cds.DetailsByIds(fin.CatSet{fin.Expense: true, fin.Income: true}),
-        Error: errors.New("Dates must be in yyyyMMdd format.")}
+        Error: errors.New("Dates must be in yyyyMMdd format."),
+        LeftNav: leftnav,
+        Global: h.Global}
     http_util.WriteTemplate(w, kTemplate, v)
     return
   }
@@ -185,7 +200,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       Values: http_util.Values{r.Form},
       CatDisplayer: common.CatDisplayer{cds},
       Sets: displaySets,
-      CatDetails: cds.DetailsByIds(catsInDropDown)}
+      CatDetails: cds.DetailsByIds(catsInDropDown),
+      LeftNav: leftnav,
+      Global: h.Global}
        
   http_util.WriteTemplate(w, kTemplate, v)
 }
@@ -220,6 +237,8 @@ type view struct {
   Sets []*dataSet
   CatDetails []categories.CatDetail
   Error error
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 type dataSetBuilder struct {

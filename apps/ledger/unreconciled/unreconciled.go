@@ -22,10 +22,16 @@ var (
   kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
   <script src="/static/selectall.js"></script>
 </head>
 <body>
+{{.LeftNav}}
+<div class="main">
 <h2>{{.Account.Name}}</h2>    
 <a href="#" onclick="document.forms[0].edit_id.value=-1; document.forms[0].submit()">New Entry</a>&nbsp;
 <a href="#" onclick="document.forms[0].edit_id.value=-2; document.forms[0].submit()">Normal View</a>
@@ -67,6 +73,7 @@ Balance: {{FormatUSD .Account.Balance}}&nbsp;&nbsp;&nbsp;&nbsp;Reconciled: {{For
 No unreconciled entries.
 {{end}}
 </form>
+</div>
 </body>
 </html>`
 )
@@ -83,6 +90,8 @@ type Store interface {
 type Handler struct {
   Doer db.Doer
   PageSize int
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 
@@ -140,6 +149,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     http_util.ReportError(w, "Error reading database.", err)
     return
   }
+  leftnav := h.LN.Generate(w, r, common.SelectAccount(acctId))
+  if leftnav == "" {
+    return
+  }
   http_util.WriteTemplate(
       w,
       kTemplate,
@@ -148,7 +161,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           common.CatDisplayer{cds},
           common.EntryLinker{r.URL},
           common.NewXsrfToken(r, kUnreconciled),
-          &account})
+          &account,
+          leftnav,
+          h.Global})
 }
 
 type view struct {
@@ -157,6 +172,8 @@ type view struct {
   common.EntryLinker
   Xsrf string
   Account *fin.Account
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 func init() {

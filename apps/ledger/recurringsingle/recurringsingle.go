@@ -26,6 +26,10 @@ var (
 kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css">
 
 <style type="text/css">
@@ -214,6 +218,7 @@ type UpdateRecurringEntryRunner interface {
 type Handler struct {
   Doer db.Doer
   Clock date_util.Clock
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -275,7 +280,7 @@ func (h *Handler) doPost(
     http_util.WriteTemplate(
         w,
         kTemplate,
-        toViewFromForm(
+        h.toViewFromForm(
             isIdValid(id),
             r.Form,
             common.NewXsrfToken(r, kRecurringSingle),
@@ -313,7 +318,7 @@ func (h *Handler) doGet(
       http_util.ReportError(w, "Error reading database.", err)
       return
     }
-    v = toView(
+    v = h.toView(
         &entryWithEtag,
         common.NewXsrfToken(r, kRecurringSingle),
         cds,
@@ -324,7 +329,7 @@ func (h *Handler) doGet(
     if paymentId > 0 {
       values.Set("payment", strconv.FormatInt(paymentId, 10))
     }
-    v = toViewFromForm(
+    v = h.toViewFromForm(
         false,
         values,
         common.NewXsrfToken(r, kRecurringSingle),
@@ -359,23 +364,14 @@ func (h *Handler) updateId(
   })
 }
 
-type view struct {
-  *common.SingleEntryView
-  RecurringUnitModel common.RecurringUnitComboBoxType
-}
-
-func isIdValid(id int64) bool {
-  return id > 0
-}
-
-func toView(
+func (h *Handler) toView(
     entry *fin.RecurringEntry,
     xsrf string,
     cds categories.CatDetailStore,
     catPopularity fin.CatPopularity) *view {
   result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
   result.SingleEntryView = common.ToSingleEntryView(
-      &entry.Entry, xsrf, cds, catPopularity)
+      &entry.Entry, xsrf, cds, catPopularity, h.Global)
   result.Set("count", strconv.Itoa(entry.Period.Count))
   result.Set("unit", strconv.Itoa(entry.Period.Unit.ToInt()))
   if entry.Period.DayOfMonth > 0 {
@@ -388,7 +384,7 @@ func toView(
 }
 
 // ShowEntryFromForm shows an entry from form values.
-func toViewFromForm(
+func (h *Handler) toViewFromForm(
     existingEntry bool,
     values url.Values,
     xsrf string,
@@ -397,8 +393,17 @@ func toViewFromForm(
     err error) *view {
   result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
   result.SingleEntryView = common.ToSingleEntryViewFromForm(
-      existingEntry, values, xsrf, cds, catPopularity, err)
+      existingEntry, values, xsrf, cds, catPopularity, h.Global, err)
   return result
+}
+
+type view struct {
+  *common.SingleEntryView
+  RecurringUnitModel common.RecurringUnitComboBoxType
+}
+
+func isIdValid(id int64) bool {
+  return id > 0
 }
 
 func entryMutation(values url.Values) (

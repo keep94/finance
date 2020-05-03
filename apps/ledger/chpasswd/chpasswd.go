@@ -23,9 +23,15 @@ var (
   kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
+{{.LeftNav}}
+<div class="main">
 <h2>Changing password for {{.Name}}</h2>
 {{if .Message}}
   {{if .Success}}
@@ -53,6 +59,7 @@ var (
   <br>
   <input type="submit" value="Change password">
 </form>
+</div>
 </body>
 </html>`
 )
@@ -69,65 +76,50 @@ type UserStore interface {
 type Handler struct {
   Store UserStore
   Doer db.Doer
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 // Changes user's password. This page must do nothing but change user's
 // password. Caution: This page gets full access to user data store
 // regardless of logged in user's permissions.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  leftnav := h.LN.Generate(w, r, common.SelectChpasswd())
+  if leftnav == "" {
+    return
+  }
   session := common.GetUserSession(r)
+  v := &view{
+      Name: session.User.Name,
+      Xsrf: common.NewXsrfToken(r, kChPasswd),
+      LeftNav: leftnav,
+      Global: h.Global}
   if r.Method == "GET" {
-    http_util.WriteTemplate(
-        w,
-        kTemplate,
-        &view{
-            Name: session.User.Name,
-            Xsrf: common.NewXsrfToken(r, kChPasswd)})
+    writeTemplate(w, v, "")
   } else {
     r.ParseForm()
     if !common.VerifyXsrfToken(r, kChPasswd) {
-      http_util.WriteTemplate(
-          w,
-          kTemplate,
-          &view{
-              Name: session.User.Name,
-              Xsrf: common.NewXsrfToken(r, kChPasswd),
-              Message: common.ErrXsrf.Error()})
+      writeTemplate(w, v, common.ErrXsrf.Error())
       return
     }
     old := r.Form.Get("old")
     new := r.Form.Get("new")
     verify := r.Form.Get("verify")
     if new != verify {
-      http_util.WriteTemplate(
-          w,
-          kTemplate,
-          &view{
-              Name: session.User.Name,
-              Xsrf: common.NewXsrfToken(r, kChPasswd),
-              Message: "Password re-typed incorrectly."})
+      writeTemplate(w, v, "Password re-typed incorrectly.")
       return
     }
     if len(new) < kMinPasswordLength {
-      http_util.WriteTemplate(
+      writeTemplate(
           w,
-          kTemplate,
-          &view{
-              Name: session.User.Name,
-              Xsrf: common.NewXsrfToken(r, kChPasswd),
-              Message: fmt.Sprintf(
-                  "Password must be at least %d characters.",
-                  kMinPasswordLength)})
+          v, 
+          fmt.Sprintf(
+              "Password must be at least %d characters.",
+              kMinPasswordLength))
       return
     }
     if !session.User.Verify(old) {
-      http_util.WriteTemplate(
-          w,
-          kTemplate,
-          &view{
-              Name: session.User.Name,
-              Xsrf: common.NewXsrfToken(r, kChPasswd),
-              Message: "Old password wrong."})
+      writeTemplate(w, v, "Old password wrong.")
       return
     }
     err := h.Doer.Do(func(t db.Transaction) error {
@@ -142,15 +134,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       http_util.ReportError(w, "Error updating database", err)
       return
     }
-    http_util.WriteTemplate(
-        w,
-        kTemplate,
-        &view{
-            Name: session.User.Name,
-            Message: "Password changed successfully.",
-            Xsrf: common.NewXsrfToken(r, kChPasswd),
-            Success: true})
+    v.Success = true
+    writeTemplate(w, v, "Password changed successfully.")
   }
+}
+
+func writeTemplate(w http.ResponseWriter, v *view, message string) {
+  v.Message = message
+  http_util.WriteTemplate(w, kTemplate, v)
 }
 
 type view struct {
@@ -158,6 +149,8 @@ type view struct {
   Message string
   Xsrf string
   Success bool
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 func init() {

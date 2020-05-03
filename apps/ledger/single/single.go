@@ -25,6 +25,10 @@ var (
 kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css">
 
 <style type="text/css">
@@ -190,6 +194,7 @@ type Store interface {
 type Handler struct {
   Doer db.Doer
   Clock date_util.Clock
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -257,6 +262,7 @@ func (h *Handler) doPost(
             common.NewXsrfToken(r, kSingle),
             cds,
             catPopularity,
+            h.Global,
             err))
   } else {
     http_util.Redirect(w, r, r.Form.Get("prev"))
@@ -293,7 +299,8 @@ func (h *Handler) doGet(
         &entryWithEtag,
         common.NewXsrfToken(r, kSingle),
         cds,
-        catPopularity)
+        catPopularity,
+        h.Global)
   } else {
     cds, _ := cdc.Get(nil)
     values := make(url.Values)
@@ -306,6 +313,7 @@ func (h *Handler) doGet(
         common.NewXsrfToken(r, kSingle),
         cds,
         catPopularity,
+        h.Global,
         nil)
   }
   http_util.WriteTemplate(w, kTemplate, v)

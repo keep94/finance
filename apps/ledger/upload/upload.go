@@ -37,9 +37,15 @@ var (
   kUploadTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
+{{.LeftNav}}
+<div class="main">
 <h2>{{.Account.Name}} Import Entries</h2>
 {{if .Error}}
   <span class="error">{{.Error}}</span>
@@ -63,15 +69,22 @@ var (
     </tr>
   </table>
 </form>
+</div>
 </body>
 </html>`
 
 kConfirmTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
+{{.LeftNav}}
+<div class="main">
 <h2>{{.Account.Name}} Import Entries</h2>
 <form method="post">
   <input type="hidden" name="task" value="confirm">
@@ -104,6 +117,7 @@ kConfirmTemplateSpec = `
     </tr>
   </table>
 </form>
+</div>
 </body>
 </html>`
 )
@@ -123,6 +137,8 @@ type Store interface {
 
 type Handler struct {
   Doer db.Doer
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +155,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   }
 }
 
-func serveConfirmPageGet(
+func (h *Handler) serveConfirmPageGet(
     w http.ResponseWriter,
     r *http.Request,
     acctId int64,
@@ -159,21 +175,26 @@ func serveConfirmPageGet(
   }
   batchEntries := batch.Entries()
   reconcile.New(batchEntries).Reconcile(unreconciled, kMaxDays)
-  showConfirmView(
+  leftnav := h.LN.Generate(w, r, common.SelectAccount(acctId))
+  if leftnav == "" {
+    return
+  }
+  h.showConfirmView(
       w,
       computeConfirmView(&account, batchEntries),
-      common.NewXsrfToken(r, kUpload))
+      common.NewXsrfToken(r, kUpload),
+      leftnav)
 }
 
 func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctId int64, batch autoimport.Batch, store Store) {
   if r.Method == "GET" {
-    serveConfirmPageGet(w, r, acctId, batch, store)
+    h.serveConfirmPageGet(w, r, acctId, batch, store)
   } else {
     // We are posting. If we are getting a post from the upload form
     // instead of the confirm form or the xsrf token is wrong,
     // then treat this as a GET
     if r.Form.Get("task") != "confirm" || !common.VerifyXsrfToken(r, kUpload) {
-      serveConfirmPageGet(w, r, acctId, batch, store)
+      h.serveConfirmPageGet(w, r, acctId, batch, store)
       return
     }
     if !http_util.HasParam(r.Form, "cancel") {
@@ -229,12 +250,18 @@ func (h *Handler) serveConfirmPage(w http.ResponseWriter, r *http.Request, acctI
   }
 }
 
-func serverUploadPageGet(
+func (h *Handler) serverUploadPageGet(
     w http.ResponseWriter, r *http.Request, account *fin.Account) {
+  leftnav := h.LN.Generate(w, r, common.SelectAccount(account.Id))
+  if leftnav == "" {
+    return
+  }
   view := &view{
       Account: account,
       StartDate: account.ImportSD.Format(date_util.YMDFormat),
-      Xsrf: common.NewXsrfToken(r, kUpload)}
+      Xsrf: common.NewXsrfToken(r, kUpload),
+      LeftNav: leftnav,
+      Global: h.Global}
   showView(w, view, nil)
 }
 
@@ -248,7 +275,7 @@ func (h *Handler) serveUploadPage(
     return
   }
   if r.Method == "GET" {
-    serverUploadPageGet(w, r, &account)
+    h.serverUploadPageGet(w, r, &account)
   } else {
     xsrf := ""
     sdStr := ""
@@ -259,7 +286,7 @@ func (h *Handler) serveUploadPage(
     if err != nil {
       // Assume we are getting a post from the confirm form instead
       // of the upload form. Treat as a GET.
-      serverUploadPageGet(w, r, &account)
+      h.serverUploadPageGet(w, r, &account)
       return
     }
     for part, err := reader.NextPart(); err == nil; part, err = reader.NextPart() {
@@ -290,10 +317,16 @@ func (h *Handler) serveUploadPage(
         return
       }
     } 
+    leftnav := h.LN.Generate(w, r, common.SelectAccount(account.Id))
+    if leftnav == "" {
+      return
+    }
     view := &view{
         Account: &account,
         StartDate: sdStr,
-        Xsrf: common.NewXsrfToken(r, kUpload)}
+        Xsrf: common.NewXsrfToken(r, kUpload),
+        LeftNav: leftnav,
+        Global: h.Global}
     if !common.VerifyXsrfTokenExplicit(xsrf, r, kUpload) {
       showView(w, view, common.ErrXsrf)
       return
@@ -337,7 +370,16 @@ func (h *Handler) serveUploadPage(
   }
 }
 
-func showView(w http.ResponseWriter, v *view, err error) {
+func (h *Handler) showConfirmView(
+    w http.ResponseWriter, v *confirmView, xsrf string, leftnav template.HTML) {
+  v.Xsrf = xsrf
+  v.LeftNav = leftnav
+  v.Global = h.Global
+  http_util.WriteTemplate(w, kConfirmTemplate, v)
+}
+
+func showView(
+    w http.ResponseWriter, v *view, err error) {
   v.Error = err
   http_util.WriteTemplate(w, kUploadTemplate, v)
 }
@@ -347,11 +389,8 @@ type view struct {
   StartDate string
   Xsrf string
   Error error
-}
-
-func showConfirmView(w http.ResponseWriter, v *confirmView, xsrf string) {
-  v.Xsrf = xsrf
-  http_util.WriteTemplate(w, kConfirmTemplate, v)
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 type confirmView struct {
@@ -361,6 +400,8 @@ type confirmView struct {
   Balance int64
   RBalance int64
   Xsrf string
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 func computeConfirmView(

@@ -13,9 +13,15 @@ var (
   kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
+{{.LeftNav}}
+<div class="main">
 <h2>Totals</h2>
 Total: {{FormatUSD .Total}}<br><br>
 <table border=1>
@@ -32,6 +38,7 @@ Total: {{FormatUSD .Total}}<br><br>
   {{end}}
 {{end}}
 </table>
+</div>
 </body>
 </html>`
 )
@@ -42,9 +49,15 @@ var (
 
 type Handler struct {
   Store findb.ActiveAccountsRunner
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  leftnav := h.LN.Generate(w, r, common.SelectTotals())
+  if leftnav == "" {
+    return
+  }
   accounts, err := h.Store.ActiveAccounts(nil)
   if err != nil {
     http_util.ReportError(w, "Database error", err)
@@ -57,6 +70,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   http_util.WriteTemplate(w, kTemplate, &view{
       Accounts: accounts,
       Total: total,
+      LeftNav: leftnav,
+      Global: h.Global,
   })
 }
 
@@ -64,6 +79,8 @@ type view struct {
   common.AccountLinker
   Accounts []*fin.Account
   Total int64
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 func init() {

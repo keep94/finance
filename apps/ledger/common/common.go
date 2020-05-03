@@ -337,6 +337,16 @@ func ActiveCatDetails(
       kMaxMostPopular)
 }
 
+// Global contains static information global to all pages in website.
+type Global struct {
+
+  // The title of the website
+  Title string
+
+  // True if website has an icon at /images/favicon.ico
+  Icon bool
+}
+
 // CatDisplayer is used to display categories.
 type CatDisplayer struct {
   categories.CatDetailStore

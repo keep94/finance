@@ -20,9 +20,15 @@ var (
   kTemplateSpec = `
 <html>
   <head>
+    <title>{{.Global.Title}}</title>
+    {{if .Global.Icon}}
+      <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+    {{end}}
     <link rel="stylesheet" type="text/css" href="/static/theme.css" />
   </head>
-<body onload="parent.leftnav.location.reload()">
+<body>
+{{.LeftNav}}
+<div class="main">
 {{if .Error}}
   <span class="error">{{.Error.Error}}</span>
 {{end}}
@@ -65,6 +71,7 @@ var (
 <input type="submit" name="rename" value="Rename">
 <input type="submit" name="remove" value="Remove" onclick="return confirm('Are you sure you want to remove this category?');">
 </form>
+</div>
 </body>
 </html>`
 )
@@ -99,6 +106,8 @@ type addConfirmType struct {
 }
 
 type Handler struct {
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -106,13 +115,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   cache := session.Cache.(Cache)
   r.ParseForm()
   if r.Method == "GET" {
+    leftnav := h.LN.Generate(w, r, common.SelectManage())
+    if leftnav == "" {
+      return
+    }
     cds, _ := cache.Get(nil)
     http_util.WriteTemplate(
         w,
         kTemplate,
         &view{
             CatDisplayer: common.CatDisplayer{cds},
-            Xsrf: common.NewXsrfToken(r, kCatEdit)})
+            Xsrf: common.NewXsrfToken(r, kCatEdit),
+            LeftNav: leftnav,
+            Global: h.Global})
   } else {
     message := ""
     cds, _ := cache.Get(nil)
@@ -161,13 +176,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       values = http_util.Values{r.Form}
       message = ""
     }
+    leftnav := h.LN.Generate(w, r, common.SelectManage())
+    if leftnav == "" {
+      return
+    }
     http_util.WriteTemplate(w, kTemplate, &view{
         CatDisplayer: common.CatDisplayer{cds},
         Values: values,
         Error: err,
         Message: message,
         AddConfirm: addConfirm,
-        Xsrf: common.NewXsrfToken(r, kCatEdit)})
+        Xsrf: common.NewXsrfToken(r, kCatEdit),
+        LeftNav: leftnav,
+        Global: h.Global})
   }
 }
 
@@ -198,6 +219,8 @@ type view struct {
   Message string
   AddConfirm *addConfirmType
   Xsrf string
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 func init() {

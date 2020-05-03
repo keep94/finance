@@ -119,9 +119,15 @@ var (
 {{end}}
 <html>
   <head>
+    <title>{{.Global.Title}}</title>
+    {{if .Global.Icon}}
+      <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+    {{end}}
     <link rel="stylesheet" type="text/css" href="/static/theme.css" />
   </head>
   <body>
+  {{.LeftNav}}
+  <div class="main">
 {{if .Error}}
   <span class="error">{{.Error}}</span>
 {{end}}
@@ -166,6 +172,7 @@ var (
 {{else}}
   {{template "MultiGraph" .}}
 {{end}}
+  </div>
   </body>
 </html>`
 )
@@ -177,10 +184,16 @@ var (
 type Handler struct {
   Cdc categoriesdb.Getter
   Store findb.EntriesRunner
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
+  leftnav := h.LN.Generate(w, r, common.SelectTrends())
+  if leftnav == "" {
+    return
+  }
   cds, _ := h.Cdc.Get(nil)
   cat, caterr := fin.CatFromString(r.Form.Get("cat"))
   start, end, err := getDateRange(r)
@@ -189,7 +202,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         Values: http_util.Values{r.Form},
         CatDisplayer: common.CatDisplayer{cds},
         Error: errors.New("Dates must be in yyyyMMdd format."),
-        CatDetails: cds.DetailsByIds(fin.CatSet{fin.Expense: true, fin.Income: true})}
+        CatDetails: cds.DetailsByIds(fin.CatSet{fin.Expense: true, fin.Income: true}),
+        LeftNav: leftnav,
+        Global: h.Global,
+    }
     http_util.WriteTemplate(w, kTemplate, v)
     return
   }
@@ -205,7 +221,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         Items: points,
         CatDetails: cds.DetailsByIds(cats),
         GraphUrl: graphUrl,
-        FormatStr: formatStringLong(r.Form.Get("freq") == "Y")}
+        FormatStr: formatStringLong(r.Form.Get("freq") == "Y"),
+        LeftNav: leftnav,
+        Global: h.Global,
+    }
     http_util.WriteTemplate(w, kTemplate, v)
   } else {
     points, graphUrl, cats, err := h.allCats(cds, r.URL, start, end, r.Form.Get("freq") == "Y")
@@ -219,10 +238,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         MultiItems: points,
         CatDetails: cds.DetailsByIds(cats),
         GraphUrl: graphUrl,
-        FormatStr: formatStringLong(r.Form.Get("freq") == "Y")}
+        FormatStr: formatStringLong(r.Form.Get("freq") == "Y"),
+        LeftNav: leftnav,
+        Global: h.Global,
+    }
     http_util.WriteTemplate(w, kTemplate, v)
   }
-       
 }
 
 func (h *Handler) singleCat(
@@ -432,6 +453,8 @@ type view struct {
   CatDetails []categories.CatDetail
   Error error
   FormatStr string
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 type dataSetBuilder struct {

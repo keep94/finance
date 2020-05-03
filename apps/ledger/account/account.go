@@ -24,9 +24,15 @@ var (
   kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
+{{.LeftNav}}
+<div class="main">
 <h2>{{.Account.Name}}</h2>    
 {{with $top := .}}
 <a href="{{.NewEntryLink .Account.Id}}">New Entry</a>&nbsp;
@@ -66,9 +72,10 @@ Page: {{.DisplayPageNo}}
 Page: {{.DisplayPageNo}}
 {{if .PageNo}}<a href="{{.PrevPageLink}}">&lt;</a>{{end}}
 {{if .End}}&nbsp;{{else}}<a href="{{.NextPageLink}}">&gt;</a>{{end}}
+{{end}}
+</div>
 </body>
-</html>
-{{end}}`
+</html>`
 )
 
 var (
@@ -85,12 +92,18 @@ type Handler struct {
   Cdc categoriesdb.Getter
   PageSize int
   Links bool
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
   id, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
+  leftnav := h.LN.Generate(w, r, common.SelectAccount(id))
+  if leftnav == "" {
+    return
+  }
   pageNo, _ := strconv.Atoi(r.Form.Get(kPageParam))
   cds := categories.CatDetailStore{}
   var entryBalances []fin.EntryBalance
@@ -134,7 +147,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           Values: entryBalances,
           CatLinker: common.CatLinker{Cds: cds, ListEntries: listEntriesUrl},
           EntryLinker: common.EntryLinker{r.URL},
-          Account: accountWrapper{&account}})
+          Account: accountWrapper{&account},
+          LeftNav: leftnav,
+          Global: h.Global})
 }
 
 type view struct {
@@ -144,6 +159,8 @@ type view struct {
   common.EntryLinker
   Account accountWrapper
   Values []fin.EntryBalance
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 type accountWrapper struct {

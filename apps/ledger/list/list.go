@@ -27,6 +27,10 @@ var (
   kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 
 <style type="text/css">
@@ -68,6 +72,8 @@ body {
 
 </head>
 <body class="yui-skin-sam">
+{{.LeftNav}}
+<div class="main">
 {{if .ErrorMessage}}
   <span class="error">{{.ErrorMessage}}</span>
 {{end}}
@@ -157,6 +163,7 @@ Page: {{.DisplayPageNo}}&nbsp;
 Page: {{.DisplayPageNo}}&nbsp;
 {{if .PageNo}}<a href="{{.PrevPageLink}}">&lt;</a>{{end}}
 {{if .End}}&nbsp;{{else}}<a href="{{.NextPageLink}}">&gt;</a>{{end}}
+</div>
 <script type="text/javascript">
   var nameSuggester = new Suggester("/fin/acname");
   var descSuggester = new Suggester("/fin/acdesc");
@@ -185,10 +192,16 @@ type Handler struct {
   Store findb.EntriesRunner
   PageSize int
   Links bool
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
+  leftnav := h.LN.Generate(w, r, common.SelectSearch())
+  if leftnav == "" {
+    return
+  }
   pageNo, _ := strconv.Atoi(r.Form.Get(kPageParam))
   cds, _ := h.Cdc.Get(nil)
   var filt fin.CatFilter
@@ -260,7 +273,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           common.CatDisplayer{cds},
           common.CatLinker{ListEntries: listEntriesUrl, Cds: cds},
           common.EntryLinker{r.URL},
-          errorMessage})
+          errorMessage,
+          leftnav,
+          h.Global})
 }
 
 type view struct {
@@ -272,6 +287,8 @@ type view struct {
   common.CatLinker
   common.EntryLinker
   ErrorMessage string
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 func getDateRelaxed(values url.Values, key string) (*time.Time, error) {

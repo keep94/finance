@@ -24,6 +24,10 @@ var (
   kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 
 <style type="text/css">
@@ -62,6 +66,8 @@ body {
 
 </head>
 <body class="yui-skin-sam">
+{{.LeftNav}}
+<div class="main">
 {{if .ErrorMessage}}
   <span class="error">{{.ErrorMessage}}</span>
 {{end}}
@@ -131,7 +137,7 @@ body {
 {{else}}
 No unreviewed entries.
 {{end}}
-
+</div>
 </body>
 </html>`
 )
@@ -148,6 +154,8 @@ type Store interface {
 type Handler struct {
   Doer db.Doer
   PageSize int
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -201,6 +209,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     http_util.ReportError(w, "Error reading database.", err)
     return
   }
+  leftnav := h.LN.Generate(w, r, common.SelectUnreviewed())
+  if leftnav == "" {
+    return
+  }
   http_util.WriteTemplate(
       w,
       kTemplate,
@@ -211,7 +223,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           entries,
           common.NewXsrfToken(r, kUnreviewed),
           message,
-          catPopularity})
+          catPopularity,
+          leftnav,
+          h.Global})
 }
 
 type view struct {
@@ -222,6 +236,8 @@ type view struct {
   Xsrf string
   ErrorMessage string
   catPopularity fin.CatPopularity
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 func (v *view) ActiveCatDetails(showAccounts bool) []categories.CatDetail {

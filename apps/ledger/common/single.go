@@ -36,6 +36,7 @@ type SingleEntryView struct {
   Error error
   Xsrf string
   ExistingEntry bool
+  Global *Global
   catPopularity fin.CatPopularity
 }
 
@@ -76,7 +77,8 @@ func ToSingleEntryView(
     entry *fin.Entry,
     xsrf string,
     cds categories.CatDetailStore,
-    catPopularity fin.CatPopularity) *SingleEntryView {
+    catPopularity fin.CatPopularity,
+    global *Global) *SingleEntryView {
   result := &SingleEntryView{
       Values: http_util.Values{make(url.Values)},
       CatDisplayer: CatDisplayer{cds},
@@ -84,6 +86,7 @@ func ToSingleEntryView(
       Error: nil,
       Xsrf: xsrf,
       ExistingEntry: true,
+      Global: global,
       catPopularity: catPopularity}
   result.Set("etag", strconv.FormatUint(entry.Etag, 10))
   result.Set("name", entry.Name)
@@ -114,8 +117,10 @@ func ToSingleEntryView(
 // existingEntry is true if the form data represents an existing entry or
 // false if it represents a brand new entry.
 // values are the form values.
+// xsrf is the cross site request forgery token
 // cds is the category detail store.
 // catPopularity is the popularity of the categories. May be nil.
+// global is the non changing global content of view.
 // err is the error from the form submission or nil if no error.
 func ToSingleEntryViewFromForm(
     existingEntry bool,
@@ -123,6 +128,7 @@ func ToSingleEntryViewFromForm(
     xsrf string,
     cds categories.CatDetailStore,
     catPopularity fin.CatPopularity,
+    global *Global,
     err error) *SingleEntryView {
   return &SingleEntryView{
       Values: http_util.Values{values},
@@ -131,6 +137,7 @@ func ToSingleEntryViewFromForm(
       Error: err,
       Xsrf: xsrf,
       ExistingEntry: existingEntry,
+      Global: global,
       catPopularity: catPopularity}
 }
 

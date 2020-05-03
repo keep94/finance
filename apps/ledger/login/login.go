@@ -24,12 +24,16 @@ var (
   kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
 <h2>Login</h2>
-{{if .}}
-  <span class="error">{{.}}</span>
+{{if .Message}}
+  <span class="error">{{.Message}}</span>
 {{end}}
 <form method="post">
   <table>
@@ -70,17 +74,18 @@ type Handler struct {
   Mailer Sender
   Recipients []string
   PopularityOn bool
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   if r.Method == "GET" {
-    http_util.WriteTemplate(w, kTemplate, nil)
+    h.writeTemplate(w, "")
   } else {
     r.ParseForm()
     userName := r.Form.Get("name")
     password := r.Form.Get("password")
     if h.LO.Locked(userName) {
-      http_util.WriteTemplate(w, kTemplate, kBadLoginMsg)
+      h.writeTemplate(w, kBadLoginMsg)
       return
     }
     var user fin.User
@@ -88,14 +93,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       return findb.LoginUser(t, h.Store, userName, password, time.Now(), &user)
     })
     if err == findb.WrongPassword {
-      http_util.WriteTemplate(w, kTemplate, kBadLoginMsg)
+      h.writeTemplate(w, kBadLoginMsg)
       if h.LO.Failure(userName) {
         h.sendLockoutEmail(userName)
       }
       return
     }
     if err == findb.NoSuchId {
-      http_util.WriteTemplate(w, kTemplate, kBadLoginMsg)
+      h.writeTemplate(w, kBadLoginMsg)
       return
     }
     if err != nil {
@@ -138,6 +143,17 @@ func (h *Handler) sendLockoutEmail(userName string) {
       Subject: subject,
       Body: body}
   h.Mailer.Send(email)
+}
+
+func (h *Handler) writeTemplate(w http.ResponseWriter, message string) {
+  http_util.WriteTemplate(w, kTemplate, &view{
+      Message: message,
+      Global: h.Global})
+}
+
+type view struct {
+  Message string
+  Global *common.Global
 }
 
 func init() {

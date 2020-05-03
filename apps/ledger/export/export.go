@@ -29,9 +29,15 @@ var (
 kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css">
 </head>
 <body>
+{{.LeftNav}}
+<div class="main">
 {{if .Error}}
   <span class="error">{{.Error.Error}}</span>
 {{end}}
@@ -63,6 +69,7 @@ kTemplateSpec = `
 </table>
 <input type="submit" name="download" value="Download">
 </form>
+</div>
 </body>
 </html>`
 )
@@ -76,6 +83,8 @@ type Handler struct {
   Store findb.EntriesRunner
   Cdc categoriesdb.Getter
   Clock date_util.Clock
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -94,21 +103,29 @@ func (h *Handler) doGet(
   oneMonthAgo := now.AddDate(0, -1, 0)
   values := make(url.Values)
   values.Set("sd", oneMonthAgo.Format(date_util.YMDFormat))
+  leftnav := h.LN.Generate(w, r, common.SelectExport())
+  if leftnav == "" {
+    return
+  }
   http_util.WriteTemplate(
       w,
       kTemplate,
-      toViewFromForm(values, cds, nil))
+      h.toViewFromForm(values, cds, leftnav, nil))
 }
 
 func (h *Handler) doPost(
     w http.ResponseWriter, r *http.Request, cds categories.CatDetailStore) {
   r.ParseForm()
+  leftnav := h.LN.Generate(w, r, common.SelectExport())
+  if leftnav == "" {
+    return
+  }
   acctId, elo, err := parseForm(r.Form)
   if err != nil {
     http_util.WriteTemplate(
         w,
         kTemplate,
-        toViewFromForm(r.Form, cds, err))
+        h.toViewFromForm(r.Form, cds, leftnav, err))
     return
   }
   buffer := &bytes.Buffer{}
@@ -145,7 +162,7 @@ func (h *Handler) doPost(
     http_util.WriteTemplate(
         w,
         kTemplate,
-        toViewFromForm(r.Form, cds, err))
+        h.toViewFromForm(r.Form, cds, leftnav, err))
     return
   }
   csvWriter.Flush()
@@ -161,18 +178,25 @@ func (h *Handler) doPost(
   buffer.WriteTo(w)
 }
 
-type view struct {
-  http_util.Values
-  common.CatDisplayer
-  Error error
-}
-
-func toViewFromForm(
-    values url.Values, cds categories.CatDetailStore, err error) *view {
+func (h *Handler) toViewFromForm(
+    values url.Values,
+    cds categories.CatDetailStore,
+    leftnav template.HTML,
+    err error) *view {
   return &view{
       http_util.Values{values},
       common.CatDisplayer{cds},
+      leftnav,
+      h.Global,
       err}
+}
+
+type view struct {
+  http_util.Values
+  common.CatDisplayer
+  LeftNav template.HTML
+  Global *common.Global
+  Error error
 }
 
 func parseForm(values url.Values) (

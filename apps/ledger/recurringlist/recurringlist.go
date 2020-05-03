@@ -25,9 +25,15 @@ var (
   kTemplateSpec = `
 <html>
 <head>
+  <title>{{.Global.Title}}</title>
+  {{if .Global.Icon}}
+    <link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
+  {{end}}
   <link rel="stylesheet" type="text/css" href="/static/theme.css" />
 </head>
 <body>
+{{.LeftNav}}
+<div class="main">
 <h2>{{.AccountName}}</h2>
 {{if .EntriesToAddCount}}
   <form method="POST">
@@ -83,10 +89,11 @@ var (
       </tr>
   {{end}}
   </table>
+{{end}}
   <br>
+  </div>
 </body>
-</html>
-{{end}}`
+</html>`
 )
 
 var (
@@ -102,11 +109,21 @@ type Handler struct {
   Cdc categoriesdb.Getter
   Doer db.Doer
   Clock date_util.Clock
+  LN *common.LeftNav
+  Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
   acctId, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
+  selecter := common.SelectRecurring()
+  if acctId > 0 {
+    selecter = common.SelectAccount(acctId)
+  }
+  leftnav := h.LN.Generate(w, r, selecter)
+  if leftnav == "" {
+    return
+  }
   session := common.GetUserSession(r)
   store := session.Store.(Store)
   var postErr error
@@ -164,7 +181,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           AccountName: accountName,
           Error: postErr,
           Xsrf: common.NewXsrfToken(r, kRecurringList),
-          Message: message})
+          Message: message,
+          LeftNav: leftnav,
+          Global: h.Global})
 }
 
 func (h *Handler) applyRecurringEntries(
@@ -229,6 +248,8 @@ type view struct {
   Message string
   Xsrf string
   AccountName string
+  LeftNav template.HTML
+  Global *common.Global
 }
 
 func (v *view) NumLeft(numLeft int) string {

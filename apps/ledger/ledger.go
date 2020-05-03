@@ -19,8 +19,6 @@ import (
   "github.com/keep94/finance/apps/ledger/chpasswd"
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/apps/ledger/export"
-  "github.com/keep94/finance/apps/ledger/frame"
-  "github.com/keep94/finance/apps/ledger/leftnav"
   "github.com/keep94/finance/apps/ledger/list"
   "github.com/keep94/finance/apps/ledger/login"
   "github.com/keep94/finance/apps/ledger/logout"
@@ -101,13 +99,17 @@ func main() {
   mux := http.NewServeMux()
   http.HandleFunc("/", rootRedirect)
   http.Handle("/static/", http.StripPrefix("/static", static.New()))
+  var hasIcon bool
   if fIcon != "" {
     err := http_util.AddStaticFromFile(
         http.DefaultServeMux, "/images/favicon.ico", fIcon)
     if err != nil {
       fmt.Printf("Icon file not found - %s\n", fIcon)
+    } else {
+      hasIcon = true
     }
   }
+  global := &common.Global{Title: fTitle, Icon: hasIcon}
   if fGmailConfig != "" {
     http.Handle(
         "/auth/login",
@@ -118,7 +120,8 @@ func main() {
             LO: kLockout,
             Mailer: kMailer,
             Recipients: kGmailConfig.To,
-            PopularityOn: fPopularity})
+            PopularityOn: fPopularity,
+            Global: global})
   } else {
     http.Handle(
         "/auth/login",
@@ -126,8 +129,10 @@ func main() {
             Doer: kDoer,
             SessionStore: kSessionStore,
             Store: kStore,
-            PopularityOn: fPopularity})
+            PopularityOn: fPopularity,
+            Global: global})
   }
+  ln := &common.LeftNav{Cdc: kReadOnlyCatDetailCache, Clock: kClock}
   http.Handle(
       "/fin/", &authHandler{mux})
   mux.Handle(
@@ -136,11 +141,17 @@ func main() {
          Store: kReadOnlyStore,
          Cdc: kReadOnlyCatDetailCache,
          PageSize: kPageSize,
-         Links: fLinks})
+         Links: fLinks,
+         LN: ln,
+         Global: global})
   mux.Handle(
       "/fin/recurringlist",
       &recurringlist.Handler{
-          Doer: kDoer, Cdc: kReadOnlyCatDetailCache, Clock: kClock})
+          Doer: kDoer,
+          Cdc: kReadOnlyCatDetailCache,
+          Clock: kClock,
+          LN: ln,
+          Global: global})
   mux.Handle(
       "/fin/account",
       &account.Handler{
@@ -148,40 +159,67 @@ func main() {
           Cdc: kReadOnlyCatDetailCache,
           Doer: kDoer,
           PageSize: kPageSize,
-          Links: fLinks})
-  mux.Handle("/fin/single", &single.Handler{Doer: kDoer, Clock: kClock})
+          Links: fLinks,
+          LN: ln,
+          Global: global})
+  mux.Handle(
+      "/fin/single",
+      &single.Handler{Doer: kDoer, Clock: kClock, Global: global})
   mux.Handle(
       "/fin/recurringsingle",
-      &recurringsingle.Handler{Doer: kDoer, Clock: kClock})
-  mux.Handle("/fin/catedit", &catedit.Handler{})
+      &recurringsingle.Handler{Doer: kDoer, Clock: kClock, Global: global})
+  mux.Handle("/fin/catedit", &catedit.Handler{LN: ln, Global: global})
   mux.Handle("/fin/logout", &logout.Handler{})
   // For now, the chpasswd handler gets full access to store
-  mux.Handle("/fin/chpasswd", &chpasswd.Handler{Store: kStore, Doer: kDoer})
   mux.Handle(
-      "/fin/leftnav",
-      &leftnav.Handler{Cdc: kReadOnlyCatDetailCache, Clock: kClock})
-  mux.Handle("/fin/frame", &frame.Handler{Title: fTitle})
+      "/fin/chpasswd",
+      &chpasswd.Handler{
+          Store: kStore,
+          Doer: kDoer,
+          LN: ln,
+          Global: global})
   mux.Handle(
       "/fin/report",
-      &report.Handler{Cdc: kReadOnlyCatDetailCache, Store: kReadOnlyStore})
+      &report.Handler{
+          Cdc: kReadOnlyCatDetailCache,
+          Store: kReadOnlyStore,
+          LN: ln,
+          Global: global})
   mux.Handle(
       "/fin/trends",
-      &trends.Handler{Store: kReadOnlyStore, Cdc:kReadOnlyCatDetailCache})
+      &trends.Handler{
+          Store: kReadOnlyStore,
+          Cdc:kReadOnlyCatDetailCache,
+          LN: ln,
+          Global: global})
   mux.Handle(
       "/fin/totals",
-      &totals.Handler{Store: kReadOnlyStore})
+      &totals.Handler{Store: kReadOnlyStore, LN: ln, Global: global})
   mux.Handle(
       "/fin/export",
       &export.Handler{
           Store: kReadOnlyStore,
           Cdc: kReadOnlyCatDetailCache,
-          Clock: kClock})
+          Clock: kClock,
+          LN: ln,
+          Global: global})
   mux.Handle(
       "/fin/unreconciled",
-      &unreconciled.Handler{Doer: kDoer, PageSize: kPageSize})
+      &unreconciled.Handler{
+          Doer: kDoer,
+          PageSize: kPageSize,
+          LN: ln,
+          Global: global})
   mux.Handle(
-      "/fin/unreviewed", &unreviewed.Handler{Doer: kDoer, PageSize: kPageSize})
-  mux.Handle("/fin/upload", &upload.Handler{Doer: kDoer})
+      "/fin/unreviewed",
+       &unreviewed.Handler{
+           Doer: kDoer,
+           PageSize: kPageSize,
+           LN: ln,
+           Global: global})
+  mux.Handle(
+      "/fin/upload",
+      &upload.Handler{Doer: kDoer, LN: ln, Global: global})
   mux.Handle(
       "/fin/acname",
       &ac.Handler{
@@ -236,7 +274,7 @@ func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func rootRedirect(w http.ResponseWriter, r *http.Request) {
   if r.URL.Path == "/" {
-    http_util.Redirect(w, r, "/fin/frame")
+    http_util.Redirect(w, r, "/fin/list")
   } else {
     http_util.Error(w, http.StatusNotFound)
   }
