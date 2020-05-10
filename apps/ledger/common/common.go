@@ -212,32 +212,40 @@ func (a AccountLinker) RecurringLink(id int64) *url.URL {
 
 // EntryLinker creates URLs to the edit entry page.
 type EntryLinker struct {
+
+  // The current URL
   URL *url.URL
+
+  // Item selected in left navigation
+  Sel Selecter
 }
 
 // EntryLink returns a URL to the edit entry page. id is the id of the
 // entry to be edited.
-func (e EntryLinker) EntryLink(id int64) *url.URL {
+func (e *EntryLinker) EntryLink(id int64) *url.URL {
   return http_util.NewUrl(
       "/fin/single",
       "id", strconv.FormatInt(id, 10),
-      "prev", e.URL.String())
+      "prev", e.URL.String(),
+      "sel", e.Sel.String())
 }
 
 // NewEntryLink returns a URL to the edit entry page for creating a
 // new entry. paymentId is the account ID of the default payment type.
 // Passing 0 or a negative number means that user will have to select
 // payment in the edit entry page.
-func (e EntryLinker) NewEntryLink(paymentId int64) *url.URL {
+func (e *EntryLinker) NewEntryLink(paymentId int64) *url.URL {
   return http_util.NewUrl(
       "/fin/single",
       "aid", strconv.FormatInt(paymentId, 10),
-      "prev", e.URL.String())
+      "prev", e.URL.String(),
+      "sel", e.Sel.String())
 }
 
 // RecurringEntryLinker creates URLs to the edit recurring entry page.
 type RecurringEntryLinker struct {
   URL *url.URL
+  Sel Selecter
 }
 
 // EntryLink returns a URL to the edit recurring entry page.
@@ -246,7 +254,8 @@ func (e RecurringEntryLinker) EntryLink(id int64) *url.URL {
   return http_util.NewUrl(
       "/fin/recurringsingle",
       "id", strconv.FormatInt(id, 10),
-      "prev", e.URL.String())
+      "prev", e.URL.String(),
+      "sel", e.Sel.String())
 }
 
 // NewEntryLink returns a URL to the edit recurring entry page for creating a
@@ -257,7 +266,8 @@ func (e RecurringEntryLinker) NewEntryLink(paymentId int64) *url.URL {
   return http_util.NewUrl(
       "/fin/recurringsingle",
       "aid", strconv.FormatInt(paymentId, 10),
-      "prev", e.URL.String())
+      "prev", e.URL.String(),
+      "sel", e.Sel.String())
 }
 
 // LinkText can be hyperlink text or plain text

@@ -117,7 +117,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       store.DoEntryChanges(nil, &findb.EntryChanges{Updates: updates})
     }
     if editId != 0 {
-      entryLinker := common.EntryLinker{r.URL}
+      entryLinker := &common.EntryLinker{
+          URL: r.URL, Sel: common.SelectAccount(acctId)}
       accountLinker := common.AccountLinker{}
       if editId == -2 {
         http_util.Redirect(
@@ -159,7 +160,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       &view{
           entries,
           common.CatDisplayer{cds},
-          common.EntryLinker{r.URL},
           common.NewXsrfToken(r, kUnreconciled),
           &account,
           leftnav,
@@ -169,7 +169,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type view struct {
   Values []fin.Entry
   common.CatDisplayer
-  common.EntryLinker
   Xsrf string
   Account *fin.Account
   LeftNav template.HTML

@@ -9,7 +9,6 @@ import (
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/findb"
   "html/template"
   "net/http"
@@ -72,6 +71,8 @@ body {
 </style>
 </head>
 <body class="yui-skin-sam">
+{{.LeftNav}}
+<div class="main">
 {{if .Error}}
   <span class="error">{{.Error.Error}}</span>
 {{end}}
@@ -178,6 +179,7 @@ body {
 <input type="submit" name="delete" value="Delete" onclick="return confirm('Are you sure you want to delete this entry?');">
 {{end}}
 </form>
+</div>
 
 <script type="text/javascript">
   var nameSuggester = new Suggester("/fin/acname");
@@ -219,25 +221,34 @@ type Handler struct {
   Doer db.Doer
   Clock date_util.Clock
   Global *common.Global
+  LN *common.LeftNav
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
   session := common.GetUserSession(r)
-  store := session.Store.(Store)
-  catPopularity := session.CatPopularity()
   id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
   paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
+  selecter, err := common.ParseSelecter(r.Form.Get("sel"))
+  if err != nil {
+    selecter = common.SelectRecurring()
+  }
   if r.Method == "GET" {
-    h.doGet(w, r, id, paymentId, store, session.Cache, catPopularity)
+    h.doGet(w, r, id, paymentId, selecter, session)
   } else {
-    h.doPost(w, r, id, store, session.Cache, catPopularity)
+    h.doPost(w, r, id, selecter, session)
   }
 }
 
 func (h *Handler) doPost(
-    w http.ResponseWriter, r *http.Request, id int64,
-    store Store, cdc categoriesdb.Getter, catPopularity fin.CatPopularity) {
+    w http.ResponseWriter,
+    r *http.Request,
+    id int64,
+    selecter common.Selecter,
+    session *common.UserSession) {
+  store := session.Store.(Store)
+  cdc := session.Cache
+  catPopularity := session.CatPopularity()
   var err error
   if !common.VerifyXsrfToken(r, kRecurringSingle) {
     err = common.ErrXsrf
@@ -277,6 +288,7 @@ func (h *Handler) doPost(
       err = common.ErrConcurrentModification
     }
     cds, _ := cdc.Get(nil)
+    leftnav := h.LN.Generate(w, r, selecter)
     http_util.WriteTemplate(
         w,
         kTemplate,
@@ -285,10 +297,15 @@ func (h *Handler) doPost(
             r.Form,
             common.NewXsrfToken(r, kRecurringSingle),
             cds,
+            leftnav,
             catPopularity,
             err))
   } else {
-    http_util.Redirect(w, r, r.Form.Get("prev"))
+    prev := r.Form.Get("prev")
+    if prev == "" {
+      prev = "/fin/recurringlist"
+    }
+    http_util.Redirect(w, r, prev)
   }
 }
 
@@ -296,10 +313,16 @@ func (h *Handler) doGet(
     w http.ResponseWriter,
     r *http.Request,
     id, paymentId int64,
-    store findb.RecurringEntryByIdRunner,
-    cdc categoriesdb.Getter,
-    catPopularity fin.CatPopularity) {
+    selecter common.Selecter,
+    session *common.UserSession) {
+  store := session.Store.(Store)
+  cdc := session.Cache
+  catPopularity := session.CatPopularity()
   var v *view
+  leftnav := h.LN.Generate(w, r, selecter)
+  if leftnav == "" {
+    return
+  }
   if isIdValid(id) {
     var entryWithEtag fin.RecurringEntry
     var cds categories.CatDetailStore
@@ -322,6 +345,7 @@ func (h *Handler) doGet(
         &entryWithEtag,
         common.NewXsrfToken(r, kRecurringSingle),
         cds,
+        leftnav,
         catPopularity)
   } else {
     cds, _ := cdc.Get(nil)
@@ -334,6 +358,7 @@ func (h *Handler) doGet(
         values,
         common.NewXsrfToken(r, kRecurringSingle),
         cds,
+        leftnav,
         catPopularity,
         nil)
   }
@@ -368,10 +393,11 @@ func (h *Handler) toView(
     entry *fin.RecurringEntry,
     xsrf string,
     cds categories.CatDetailStore,
+    leftnav template.HTML,
     catPopularity fin.CatPopularity) *view {
   result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
   result.SingleEntryView = common.ToSingleEntryView(
-      &entry.Entry, xsrf, cds, catPopularity, h.Global)
+      &entry.Entry, xsrf, cds, catPopularity, h.Global, leftnav)
   result.Set("count", strconv.Itoa(entry.Period.Count))
   result.Set("unit", strconv.Itoa(entry.Period.Unit.ToInt()))
   if entry.Period.DayOfMonth > 0 {
@@ -389,11 +415,12 @@ func (h *Handler) toViewFromForm(
     values url.Values,
     xsrf string,
     cds categories.CatDetailStore,
+    leftnav template.HTML,
     catPopularity fin.CatPopularity,
     err error) *view {
   result := &view{RecurringUnitModel: common.RecurringUnitComboBox}
   result.SingleEntryView = common.ToSingleEntryViewFromForm(
-      existingEntry, values, xsrf, cds, catPopularity, h.Global, err)
+      existingEntry, values, xsrf, cds, catPopularity, h.Global, leftnav, err)
   return result
 }
 

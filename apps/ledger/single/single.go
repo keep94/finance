@@ -8,7 +8,6 @@ import (
   "github.com/keep94/finance/apps/ledger/common"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/categories/categoriesdb"
   "github.com/keep94/finance/fin/findb"
   "html/template"
   "net/http"
@@ -71,6 +70,8 @@ body {
 </style>
 </head>
 <body class="yui-skin-sam">
+{{.LeftNav}}
+<div class="main">
 {{if .Error}}
   <span class="error">{{.Error.Error}}</span>
 {{end}}
@@ -160,6 +161,7 @@ body {
 <input type="submit" name="delete" value="Delete" onclick="return confirm('Are you sure you want to delete this entry?');">
 {{end}}
 </form>
+</div>
 
 <script type="text/javascript">
   var nameSuggester = new Suggester("/fin/acname");
@@ -195,25 +197,34 @@ type Handler struct {
   Doer db.Doer
   Clock date_util.Clock
   Global *common.Global
+  LN *common.LeftNav
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
   session := common.GetUserSession(r)
-  store := session.Store.(Store)
-  catPopularity := session.CatPopularity()
   id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
   paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
+  selecter, err := common.ParseSelecter(r.Form.Get("sel"))
+  if err != nil {
+    selecter = common.SelectSearch()
+  }
   if r.Method == "GET" {
-    h.doGet(w, r, id, paymentId, store, session.Cache, catPopularity)
+    h.doGet(w, r, id, paymentId, selecter, session)
   } else {
-    h.doPost(w, r, id, store, session.Cache, catPopularity)
+    h.doPost(w, r, id, selecter, session)
   }
 }
 
 func (h *Handler) doPost(
-    w http.ResponseWriter, r *http.Request, id int64,
-    store Store, cdc categoriesdb.Getter, catPopularity fin.CatPopularity) {
+    w http.ResponseWriter,
+    r *http.Request,
+    id int64,
+    selecter common.Selecter,
+    session *common.UserSession) {
+  store := session.Store.(Store)
+  cdc := session.Cache
+  catPopularity := session.CatPopularity()
   var err error
   if !common.VerifyXsrfToken(r, kSingle) {
     err = common.ErrXsrf
@@ -253,6 +264,10 @@ func (h *Handler) doPost(
       err = common.ErrConcurrentModification
     }
     cds, _ := cdc.Get(nil)
+    leftnav := h.LN.Generate(w, r, selecter)
+    if leftnav == "" {
+      return
+    }
     http_util.WriteTemplate(
         w,
         kTemplate,
@@ -263,9 +278,14 @@ func (h *Handler) doPost(
             cds,
             catPopularity,
             h.Global,
+            leftnav,
             err))
   } else {
-    http_util.Redirect(w, r, r.Form.Get("prev"))
+    prev := r.Form.Get("prev")
+    if prev == "" {
+      prev = "/fin/list"
+    }
+    http_util.Redirect(w, r, prev)
   }
 }
 
@@ -273,9 +293,15 @@ func (h *Handler) doGet(
     w http.ResponseWriter,
     r *http.Request,
     id, paymentId int64,
-    store findb.EntryByIdRunner,
-    cdc categoriesdb.Getter,
-    catPopularity fin.CatPopularity) {
+    selecter common.Selecter,
+    session *common.UserSession) {
+  store := session.Store.(Store)
+  cdc := session.Cache
+  catPopularity := session.CatPopularity()
+  leftnav := h.LN.Generate(w, r, selecter)
+  if leftnav == "" {
+    return
+  }
   var v *common.SingleEntryView
   if isIdValid(id) {
     var entryWithEtag fin.Entry
@@ -300,7 +326,8 @@ func (h *Handler) doGet(
         common.NewXsrfToken(r, kSingle),
         cds,
         catPopularity,
-        h.Global)
+        h.Global,
+        leftnav)
   } else {
     cds, _ := cdc.Get(nil)
     values := make(url.Values)
@@ -314,6 +341,7 @@ func (h *Handler) doGet(
         cds,
         catPopularity,
         h.Global,
+        leftnav,
         nil)
   }
   http_util.WriteTemplate(w, kTemplate, v)

@@ -173,7 +173,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       kTemplate,
       &view{
           CatDisplayer: common.CatDisplayer{cds},
-          RecurringEntryLinker: common.RecurringEntryLinker{r.URL},
+          RecurringEntryLinker: &common.RecurringEntryLinker{
+              URL: r.URL,
+              Sel: selecter},
           Values: entries,
           AccountId: acctId,
           Today: currentDate,
@@ -238,7 +240,7 @@ func (h *Handler) applyEntry(
 
 type view struct {
   common.CatDisplayer
-  common.RecurringEntryLinker
+  *common.RecurringEntryLinker
   common.AccountLinker
   Values []*fin.RecurringEntry
   AccountId int64

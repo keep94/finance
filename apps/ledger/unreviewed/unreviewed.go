@@ -192,7 +192,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     }
     redirectId, _ := strconv.ParseInt(r.Form.Get("edit_id"), 10, 64)
     if redirectId > 0 {
-      entryLinker := common.EntryLinker{r.URL}
+      entryLinker := &common.EntryLinker{
+          URL: r.URL, Sel: common.SelectUnreviewed()}
       http_util.Redirect(w, r, entryLinker.EntryLink(redirectId).String())
       return
     }
@@ -219,7 +220,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       &view{
           http_util.Values{r.Form},
           common.CatDisplayer{cds},
-          common.EntryLinker{r.URL},
           entries,
           common.NewXsrfToken(r, kUnreviewed),
           message,
@@ -231,7 +231,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type view struct {
   http_util.Values
   common.CatDisplayer
-  common.EntryLinker
   Entries []fin.Entry
   Xsrf string
   ErrorMessage string

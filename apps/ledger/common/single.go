@@ -7,6 +7,7 @@ import (
   "github.com/keep94/appcommon/http_util"
   "github.com/keep94/finance/fin"
   "github.com/keep94/finance/fin/categories"
+  "html/template"
   "net/url"
   "strconv"
   "strings"
@@ -37,6 +38,7 @@ type SingleEntryView struct {
   Xsrf string
   ExistingEntry bool
   Global *Global
+  LeftNav template.HTML
   catPopularity fin.CatPopularity
 }
 
@@ -78,7 +80,8 @@ func ToSingleEntryView(
     xsrf string,
     cds categories.CatDetailStore,
     catPopularity fin.CatPopularity,
-    global *Global) *SingleEntryView {
+    global *Global,
+    leftnav template.HTML) *SingleEntryView {
   result := &SingleEntryView{
       Values: http_util.Values{make(url.Values)},
       CatDisplayer: CatDisplayer{cds},
@@ -87,6 +90,7 @@ func ToSingleEntryView(
       Xsrf: xsrf,
       ExistingEntry: true,
       Global: global,
+      LeftNav: leftnav,
       catPopularity: catPopularity}
   result.Set("etag", strconv.FormatUint(entry.Etag, 10))
   result.Set("name", entry.Name)
@@ -121,6 +125,7 @@ func ToSingleEntryView(
 // cds is the category detail store.
 // catPopularity is the popularity of the categories. May be nil.
 // global is the non changing global content of view.
+// leftnav is the left navigation content
 // err is the error from the form submission or nil if no error.
 func ToSingleEntryViewFromForm(
     existingEntry bool,
@@ -129,6 +134,7 @@ func ToSingleEntryViewFromForm(
     cds categories.CatDetailStore,
     catPopularity fin.CatPopularity,
     global *Global,
+    leftnav template.HTML,
     err error) *SingleEntryView {
   return &SingleEntryView{
       Values: http_util.Values{values},
@@ -138,6 +144,7 @@ func ToSingleEntryViewFromForm(
       Xsrf: xsrf,
       ExistingEntry: existingEntry,
       Global: global,
+      LeftNav: leftnav,
       catPopularity: catPopularity}
 }
 

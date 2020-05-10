@@ -100,7 +100,8 @@ type Handler struct {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   r.ParseForm()
   id, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
-  leftnav := h.LN.Generate(w, r, common.SelectAccount(id))
+  selecter := common.SelectAccount(id)
+  leftnav := h.LN.Generate(w, r, selecter)
   if leftnav == "" {
     return
   }
@@ -146,7 +147,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           },
           Values: entryBalances,
           CatLinker: common.CatLinker{Cds: cds, ListEntries: listEntriesUrl},
-          EntryLinker: common.EntryLinker{r.URL},
+          EntryLinker: &common.EntryLinker{URL: r.URL, Sel: selecter},
           Account: accountWrapper{&account},
           LeftNav: leftnav,
           Global: h.Global})
@@ -156,7 +157,7 @@ type view struct {
   http_util.PageBreadCrumb
   common.CatLinker
   common.AccountLinker
-  common.EntryLinker
+  *common.EntryLinker
   Account accountWrapper
   Values []fin.EntryBalance
   LeftNav template.HTML

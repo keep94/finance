@@ -164,10 +164,11 @@ func main() {
           Global: global})
   mux.Handle(
       "/fin/single",
-      &single.Handler{Doer: kDoer, Clock: kClock, Global: global})
+      &single.Handler{Doer: kDoer, Clock: kClock, Global: global, LN: ln})
   mux.Handle(
       "/fin/recurringsingle",
-      &recurringsingle.Handler{Doer: kDoer, Clock: kClock, Global: global})
+      &recurringsingle.Handler{
+          Doer: kDoer, Clock: kClock, Global: global, LN: ln})
   mux.Handle("/fin/catedit", &catedit.Handler{LN: ln, Global: global})
   mux.Handle("/fin/logout", &logout.Handler{})
   // For now, the chpasswd handler gets full access to store
