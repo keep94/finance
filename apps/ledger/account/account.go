@@ -147,7 +147,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           },
           Values: entryBalances,
           CatLinker: common.CatLinker{Cds: cds, ListEntries: listEntriesUrl},
-          EntryLinker: &common.EntryLinker{URL: r.URL, Sel: selecter},
+          EntryLinker: common.EntryLinker{URL: r.URL, Sel: selecter},
           Account: accountWrapper{&account},
           LeftNav: leftnav,
           Global: h.Global})
@@ -157,7 +157,7 @@ type view struct {
   http_util.PageBreadCrumb
   common.CatLinker
   common.AccountLinker
-  *common.EntryLinker
+  common.EntryLinker
   Account accountWrapper
   Values []fin.EntryBalance
   LeftNav template.HTML

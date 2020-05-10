@@ -273,7 +273,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
           http_util.Values{r.Form},
           common.CatDisplayer{cds},
           common.CatLinker{ListEntries: listEntriesUrl, Cds: cds},
-          &common.EntryLinker{URL: r.URL, Sel: selecter},
+          common.EntryLinker{URL: r.URL, Sel: selecter},
           errorMessage,
           leftnav,
           h.Global})
@@ -286,7 +286,7 @@ type view struct {
   http_util.Values
   common.CatDisplayer
   common.CatLinker
-  *common.EntryLinker
+  common.EntryLinker
   ErrorMessage string
   LeftNav template.HTML
   Global *common.Global
