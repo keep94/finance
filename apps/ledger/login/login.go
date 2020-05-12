@@ -130,7 +130,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     }
     session.ID = ""  // For added security, force a new session ID
     session.Save(r, w)
-    http_util.Redirect(w, r, r.Form.Get("prev"))
+    prev := r.Form.Get("prev")
+    if prev == "" {
+      prev = "/fin/list"
+    }
+    http_util.Redirect(w, r, prev)
   }
 }
 

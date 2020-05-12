@@ -261,7 +261,7 @@ func (h *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     redirectString := r.URL.String()
     // Never have login page redirect to logout page.
     if redirectString == "/fin/logout" {
-      redirectString = "/fin/frame"
+      redirectString = "/fin/list"
     }
     http_util.Redirect(
         w,
