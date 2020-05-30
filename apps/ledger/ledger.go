@@ -64,7 +64,7 @@ var (
   fTitle string
   fGmailConfig string
   fLinks bool
-  fPopularity bool
+  fPopularityLookback int
 )
 
 var (
@@ -120,7 +120,7 @@ func main() {
             LO: kLockout,
             Mailer: kMailer,
             Recipients: kGmailConfig.To,
-            PopularityOn: fPopularity,
+            PopularityLookback: fPopularityLookback,
             Global: global})
   } else {
     http.Handle(
@@ -129,7 +129,7 @@ func main() {
             Doer: kDoer,
             SessionStore: kSessionStore,
             Store: kStore,
-            PopularityOn: fPopularity,
+            PopularityLookback: fPopularityLookback,
             Global: global})
   }
   ln := &common.LeftNav{Cdc: kReadOnlyCatDetailCache, Clock: kClock}
@@ -290,11 +290,11 @@ func init() {
   flag.StringVar(&fTitle, "title", "Finances", "Application title")
   flag.StringVar(&fGmailConfig, "gmail_config", "", "Gmail config file path")
   flag.BoolVar(&fLinks, "links", false, "Show categories as links in listings")
-  flag.BoolVar(
-      &fPopularity,
-      "popularity",
-      false,
-      "Show most popular categories first in dropdowns")
+  flag.IntVar(
+      &fPopularityLookback,
+      "popularity_lookback",
+      200,
+      "Number of entries to look back to find most popular categories")
 }
 
 func setupDb(filepath string) {

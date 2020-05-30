@@ -17,7 +17,6 @@ import (
 
 const (
   kBadLoginMsg = "Login incorrect."
-  kCatPopularityMaxEntriesToRead = 100
 )
 
 var (
@@ -73,7 +72,7 @@ type Handler struct {
   LO *lockout.Lockout
   Mailer Sender
   Recipients []string
-  PopularityOn bool
+  PopularityLookback int
   Global *common.Global
 }
 
@@ -120,10 +119,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     if !user.LastLogin.IsZero() {
       session.SetLastLogin(user.LastLogin)
     }
-    if h.PopularityOn {
+    if h.PopularityLookback > 0 {
       var catPopularity fin.CatPopularity
       consumer := fin.BuildCatPopularity(
-          kCatPopularityMaxEntriesToRead, &catPopularity)
+          h.PopularityLookback, &catPopularity)
       h.Store.Entries(nil, nil, consumer)
       consumer.Finalize()
       session.SetCatPopularity(catPopularity)
