@@ -1,27 +1,27 @@
 package single
 
 import (
-  "fmt"
-  "github.com/keep94/appcommon/date_util"
-  "github.com/keep94/appcommon/db"
-  "github.com/keep94/appcommon/http_util"
-  "github.com/keep94/finance/apps/ledger/common"
-  "github.com/keep94/finance/fin"
-  "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/findb"
-  "html/template"
-  "net/http"
-  "net/url"
-  "strconv"
-  "time"
+	"fmt"
+	"github.com/keep94/appcommon/date_util"
+	"github.com/keep94/appcommon/db"
+	"github.com/keep94/appcommon/http_util"
+	"github.com/keep94/finance/apps/ledger/common"
+	"github.com/keep94/finance/fin"
+	"github.com/keep94/finance/fin/categories"
+	"github.com/keep94/finance/fin/findb"
+	"html/template"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
 )
 
 const (
-  kSingle = "single"
+	kSingle = "single"
 )
 
 var (
-kTemplateSpec = `
+	kTemplateSpec = `
 <html>
 <head>
   <title>{{.Global.Title}}</title>
@@ -183,201 +183,201 @@ body {
 )
 
 var (
-  kTemplate *template.Template
+	kTemplate *template.Template
 )
 
 // Store methods are from fin.Store
 type Store interface {
-  findb.DoEntryChangesRunner
-  findb.EntryByIdRunner
-  findb.EntriesRunner
+	findb.DoEntryChangesRunner
+	findb.EntryByIdRunner
+	findb.EntriesRunner
 }
 
 type Handler struct {
-  Doer db.Doer
-  Clock date_util.Clock
-  Global *common.Global
-  LN *common.LeftNav
+	Doer   db.Doer
+	Clock  date_util.Clock
+	Global *common.Global
+	LN     *common.LeftNav
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-  r.ParseForm()
-  session := common.GetUserSession(r)
-  id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
-  paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
-  selecter, err := common.ParseSelecter(r.Form.Get("sel"))
-  if err != nil {
-    selecter = common.SelectSearch()
-  }
-  if r.Method == "GET" {
-    h.doGet(w, r, id, paymentId, selecter, session)
-  } else {
-    h.doPost(w, r, id, selecter, session)
-  }
+	r.ParseForm()
+	session := common.GetUserSession(r)
+	id, _ := strconv.ParseInt(r.Form.Get("id"), 10, 64)
+	paymentId, _ := strconv.ParseInt(r.Form.Get("aid"), 10, 64)
+	selecter, err := common.ParseSelecter(r.Form.Get("sel"))
+	if err != nil {
+		selecter = common.SelectSearch()
+	}
+	if r.Method == "GET" {
+		h.doGet(w, r, id, paymentId, selecter, session)
+	} else {
+		h.doPost(w, r, id, selecter, session)
+	}
 }
 
 func (h *Handler) doPost(
-    w http.ResponseWriter,
-    r *http.Request,
-    id int64,
-    selecter common.Selecter,
-    session *common.UserSession) {
-  store := session.Store.(Store)
-  cdc := session.Cache
-  catPopularity := session.CatPopularity()
-  var err error
-  if !common.VerifyXsrfToken(r, kSingle) {
-    err = common.ErrXsrf
-  } else if http_util.HasParam(r.Form, "delete") {
-    if isIdValid(id) {
-      err = deleteId(id, store)
-    }
-  } else if http_util.HasParam(r.Form, "cancel") {
-    // Do nothing
-  } else {
-    // Save button
-    var mutation fin.EntryUpdater
-    mutation, err = common.EntryMutation(r.Form)
-    if err == nil {
-      if isIdValid(id) {
-        tag, _ := strconv.ParseUint(r.Form.Get("etag"), 10, 64)
-        err = updateId(id, tag, mutation, store)
-      } else {
-        entry := fin.Entry{}
-        mutation(&entry)
-        // If user changed date since last submission check if that date is
-        // reasonable.
-        if r.Form.Get("last_date") != r.Form.Get("date") {
-          if h.isDateReasonable(entry.Date) {
-            err = add(&entry, store)
-          } else {
-            err = common.ErrDateMayBeWrong
-          }
-        } else {
-          err = add(&entry, store)
-        }
-      }
-    }
-  }
-  if err != nil {
-    if err == findb.ConcurrentUpdate {
-      err = common.ErrConcurrentModification
-    }
-    cds, _ := cdc.Get(nil)
-    leftnav := h.LN.Generate(w, r, selecter)
-    if leftnav == "" {
-      return
-    }
-    http_util.WriteTemplate(
-        w,
-        kTemplate,
-        common.ToSingleEntryViewFromForm(
-            isIdValid(id),
-            r.Form,
-            common.NewXsrfToken(r, kSingle),
-            cds,
-            catPopularity,
-            h.Global,
-            leftnav,
-            err))
-  } else {
-    prev := r.Form.Get("prev")
-    if prev == "" {
-      prev = "/fin/list"
-    }
-    http_util.Redirect(w, r, prev)
-  }
+	w http.ResponseWriter,
+	r *http.Request,
+	id int64,
+	selecter common.Selecter,
+	session *common.UserSession) {
+	store := session.Store.(Store)
+	cdc := session.Cache
+	catPopularity := session.CatPopularity()
+	var err error
+	if !common.VerifyXsrfToken(r, kSingle) {
+		err = common.ErrXsrf
+	} else if http_util.HasParam(r.Form, "delete") {
+		if isIdValid(id) {
+			err = deleteId(id, store)
+		}
+	} else if http_util.HasParam(r.Form, "cancel") {
+		// Do nothing
+	} else {
+		// Save button
+		var mutation fin.EntryUpdater
+		mutation, err = common.EntryMutation(r.Form)
+		if err == nil {
+			if isIdValid(id) {
+				tag, _ := strconv.ParseUint(r.Form.Get("etag"), 10, 64)
+				err = updateId(id, tag, mutation, store)
+			} else {
+				entry := fin.Entry{}
+				mutation(&entry)
+				// If user changed date since last submission check if that date is
+				// reasonable.
+				if r.Form.Get("last_date") != r.Form.Get("date") {
+					if h.isDateReasonable(entry.Date) {
+						err = add(&entry, store)
+					} else {
+						err = common.ErrDateMayBeWrong
+					}
+				} else {
+					err = add(&entry, store)
+				}
+			}
+		}
+	}
+	if err != nil {
+		if err == findb.ConcurrentUpdate {
+			err = common.ErrConcurrentModification
+		}
+		cds, _ := cdc.Get(nil)
+		leftnav := h.LN.Generate(w, r, selecter)
+		if leftnav == "" {
+			return
+		}
+		http_util.WriteTemplate(
+			w,
+			kTemplate,
+			common.ToSingleEntryViewFromForm(
+				isIdValid(id),
+				r.Form,
+				common.NewXsrfToken(r, kSingle),
+				cds,
+				catPopularity,
+				h.Global,
+				leftnav,
+				err))
+	} else {
+		prev := r.Form.Get("prev")
+		if prev == "" {
+			prev = "/fin/list"
+		}
+		http_util.Redirect(w, r, prev)
+	}
 }
 
 func (h *Handler) doGet(
-    w http.ResponseWriter,
-    r *http.Request,
-    id, paymentId int64,
-    selecter common.Selecter,
-    session *common.UserSession) {
-  store := session.Store.(Store)
-  cdc := session.Cache
-  catPopularity := session.CatPopularity()
-  leftnav := h.LN.Generate(w, r, selecter)
-  if leftnav == "" {
-    return
-  }
-  var v *common.SingleEntryView
-  if isIdValid(id) {
-    var entryWithEtag fin.Entry
-    var cds categories.CatDetailStore
-    err := h.Doer.Do(func(t db.Transaction) (err error) {
-      cds, err = cdc.Get(t)
-      if err != nil {
-        return
-      }
-      return store.EntryById(t, id, &entryWithEtag)
-    })
-    if err == findb.NoSuchId {
-      fmt.Fprintln(w, "No entry found.")
-      return
-    }
-    if err != nil {
-      http_util.ReportError(w, "Error reading database.", err)
-      return
-    }
-    v = common.ToSingleEntryView(
-        &entryWithEtag,
-        common.NewXsrfToken(r, kSingle),
-        cds,
-        catPopularity,
-        h.Global,
-        leftnav)
-  } else {
-    cds, _ := cdc.Get(nil)
-    values := make(url.Values)
-    if paymentId > 0 {
-      values.Set("payment", strconv.FormatInt(paymentId, 10))
-    }
-    v = common.ToSingleEntryViewFromForm(
-        false,
-        values,
-        common.NewXsrfToken(r, kSingle),
-        cds,
-        catPopularity,
-        h.Global,
-        leftnav,
-        nil)
-  }
-  http_util.WriteTemplate(w, kTemplate, v)
+	w http.ResponseWriter,
+	r *http.Request,
+	id, paymentId int64,
+	selecter common.Selecter,
+	session *common.UserSession) {
+	store := session.Store.(Store)
+	cdc := session.Cache
+	catPopularity := session.CatPopularity()
+	leftnav := h.LN.Generate(w, r, selecter)
+	if leftnav == "" {
+		return
+	}
+	var v *common.SingleEntryView
+	if isIdValid(id) {
+		var entryWithEtag fin.Entry
+		var cds categories.CatDetailStore
+		err := h.Doer.Do(func(t db.Transaction) (err error) {
+			cds, err = cdc.Get(t)
+			if err != nil {
+				return
+			}
+			return store.EntryById(t, id, &entryWithEtag)
+		})
+		if err == findb.NoSuchId {
+			fmt.Fprintln(w, "No entry found.")
+			return
+		}
+		if err != nil {
+			http_util.ReportError(w, "Error reading database.", err)
+			return
+		}
+		v = common.ToSingleEntryView(
+			&entryWithEtag,
+			common.NewXsrfToken(r, kSingle),
+			cds,
+			catPopularity,
+			h.Global,
+			leftnav)
+	} else {
+		cds, _ := cdc.Get(nil)
+		values := make(url.Values)
+		if paymentId > 0 {
+			values.Set("payment", strconv.FormatInt(paymentId, 10))
+		}
+		v = common.ToSingleEntryViewFromForm(
+			false,
+			values,
+			common.NewXsrfToken(r, kSingle),
+			cds,
+			catPopularity,
+			h.Global,
+			leftnav,
+			nil)
+	}
+	http_util.WriteTemplate(w, kTemplate, v)
 }
 
 func (h *Handler) isDateReasonable(date time.Time) bool {
-  currentDate := date_util.TimeToDate(h.Clock.Now())
-  oneMonthBefore := currentDate.AddDate(0, -1, 0)
-  return !(date.Before(oneMonthBefore) || date.After(currentDate))
+	currentDate := date_util.TimeToDate(h.Clock.Now())
+	oneMonthBefore := currentDate.AddDate(0, -1, 0)
+	return !(date.Before(oneMonthBefore) || date.After(currentDate))
 }
 
 func isIdValid(id int64) bool {
-  return id > 0
+	return id > 0
 }
 
 func deleteId(id int64, store findb.DoEntryChangesRunner) error {
-  changes := findb.EntryChanges{Deletes: []int64{id}}
-  return store.DoEntryChanges(nil, &changes)
+	changes := findb.EntryChanges{Deletes: []int64{id}}
+	return store.DoEntryChanges(nil, &changes)
 }
 
 func updateId(
-    id int64,
-    tag uint64,
-    mutation fin.EntryUpdater,
-    store findb.DoEntryChangesRunner) error {
-  changes := findb.EntryChanges{
-      Updates: map[int64]fin.EntryUpdater{ id: mutation},
-      Etags: map[int64]uint64{ id: tag}}
-  return store.DoEntryChanges(nil, &changes)
+	id int64,
+	tag uint64,
+	mutation fin.EntryUpdater,
+	store findb.DoEntryChangesRunner) error {
+	changes := findb.EntryChanges{
+		Updates: map[int64]fin.EntryUpdater{id: mutation},
+		Etags:   map[int64]uint64{id: tag}}
+	return store.DoEntryChanges(nil, &changes)
 }
 
 func add(entry *fin.Entry, store findb.DoEntryChangesRunner) error {
-  changes := findb.EntryChanges{Adds: []*fin.Entry{entry}}
-  return store.DoEntryChanges(nil, &changes)
+	changes := findb.EntryChanges{Adds: []*fin.Entry{entry}}
+	return store.DoEntryChanges(nil, &changes)
 }
 
 func init() {
-  kTemplate = common.NewTemplate("single", kTemplateSpec)
+	kTemplate = common.NewTemplate("single", kTemplateSpec)
 }

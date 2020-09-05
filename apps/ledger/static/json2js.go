@@ -1,7 +1,7 @@
 package static
 
 var (
-  kJson2Js = `
+	kJson2Js = `
 /*
     http://www.JSON.org/json2.js
     2011-01-18

@@ -1,16 +1,16 @@
 package totals
 
 import (
-  "github.com/keep94/appcommon/http_util"
-  "github.com/keep94/finance/apps/ledger/common"
-  "github.com/keep94/finance/fin"
-  "github.com/keep94/finance/fin/findb"
-  "html/template"
-  "net/http"
+	"github.com/keep94/appcommon/http_util"
+	"github.com/keep94/finance/apps/ledger/common"
+	"github.com/keep94/finance/fin"
+	"github.com/keep94/finance/fin/findb"
+	"html/template"
+	"net/http"
 )
 
 var (
-  kTemplateSpec = `
+	kTemplateSpec = `
 <html>
 <head>
   <title>{{.Global.Title}}</title>
@@ -44,45 +44,45 @@ Total: {{FormatUSD .Total}}<br><br>
 )
 
 var (
-  kTemplate *template.Template
+	kTemplate *template.Template
 )
 
 type Handler struct {
-  Store findb.ActiveAccountsRunner
-  LN *common.LeftNav
-  Global *common.Global
+	Store  findb.ActiveAccountsRunner
+	LN     *common.LeftNav
+	Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-  leftnav := h.LN.Generate(w, r, common.SelectTotals())
-  if leftnav == "" {
-    return
-  }
-  accounts, err := h.Store.ActiveAccounts(nil)
-  if err != nil {
-    http_util.ReportError(w, "Database error", err)
-    return
-  }
-  var total int64
-  for _, account := range accounts {
-    total += account.Balance
-  }
-  http_util.WriteTemplate(w, kTemplate, &view{
-      Accounts: accounts,
-      Total: total,
-      LeftNav: leftnav,
-      Global: h.Global,
-  })
+	leftnav := h.LN.Generate(w, r, common.SelectTotals())
+	if leftnav == "" {
+		return
+	}
+	accounts, err := h.Store.ActiveAccounts(nil)
+	if err != nil {
+		http_util.ReportError(w, "Database error", err)
+		return
+	}
+	var total int64
+	for _, account := range accounts {
+		total += account.Balance
+	}
+	http_util.WriteTemplate(w, kTemplate, &view{
+		Accounts: accounts,
+		Total:    total,
+		LeftNav:  leftnav,
+		Global:   h.Global,
+	})
 }
 
 type view struct {
-  common.AccountLinker
-  Accounts []*fin.Account
-  Total int64
-  LeftNav template.HTML
-  Global *common.Global
+	common.AccountLinker
+	Accounts []*fin.Account
+	Total    int64
+	LeftNav  template.HTML
+	Global   *common.Global
 }
 
 func init() {
-  kTemplate = common.NewTemplate("totals", kTemplateSpec)
+	kTemplate = common.NewTemplate("totals", kTemplateSpec)
 }

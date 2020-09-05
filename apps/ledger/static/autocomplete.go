@@ -1,7 +1,7 @@
 package static
 
 var (
-  kAutoCompleteCss = `
+	kAutoCompleteCss = `
 /*
 Copyright (c) 2010, Yahoo! Inc. All rights reserved.
 Code licensed under the BSD License:
@@ -12,7 +12,7 @@ version: 2.8.2r1
 )
 
 var (
-  kAutoCompleteJs = `
+	kAutoCompleteJs = `
 /*
 Copyright (c) 2010, Yahoo! Inc. All rights reserved.
 Code licensed under the BSD License:
@@ -28,7 +28,7 @@ if(this._elCurListItem){YAHOO.util.Dom.removeClass(this._elCurListItem,B);this._
 )
 
 var (
-  kDataSourceMinJs = `
+	kDataSourceMinJs = `
 /*
 Copyright (c) 2010, Yahoo! Inc. All rights reserved.
 Code licensed under the BSD License:
@@ -44,7 +44,7 @@ oResponse.error=true;DS.issueCallback(oCallback,[oRequest,oResponse],true,oCalle
 )
 
 var (
-  kYahooDomEventJs = `
+	kYahooDomEventJs = `
 /*
 Copyright (c) 2010, Yahoo! Inc. All rights reserved.
 Code licensed under the BSD License:

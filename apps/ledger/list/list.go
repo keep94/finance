@@ -1,30 +1,30 @@
 package list
 
 import (
-  "github.com/keep94/appcommon/date_util"
-  "github.com/keep94/appcommon/http_util"
-  "github.com/keep94/finance/apps/ledger/common"
-  "github.com/keep94/finance/fin"
-  "github.com/keep94/finance/fin/aggregators"
-  "github.com/keep94/finance/fin/categories/categoriesdb"
-  "github.com/keep94/finance/fin/consumers"
-  "github.com/keep94/finance/fin/filters"
-  "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/goconsume"
-  "html/template"
-  "net/http"
-  "net/url"
-  "strconv"
-  "strings"
-  "time"
+	"github.com/keep94/appcommon/date_util"
+	"github.com/keep94/appcommon/http_util"
+	"github.com/keep94/finance/apps/ledger/common"
+	"github.com/keep94/finance/fin"
+	"github.com/keep94/finance/fin/aggregators"
+	"github.com/keep94/finance/fin/categories/categoriesdb"
+	"github.com/keep94/finance/fin/consumers"
+	"github.com/keep94/finance/fin/filters"
+	"github.com/keep94/finance/fin/findb"
+	"github.com/keep94/goconsume"
+	"html/template"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (
-  kPageParam = "pageNo"
+	kPageParam = "pageNo"
 )
 
 var (
-  kTemplateSpec = `
+	kTemplateSpec = `
 <html>
 <head>
   <title>{{.Global.Title}}</title>
@@ -184,175 +184,175 @@ Page: {{.DisplayPageNo}}&nbsp;
 )
 
 var (
-  kTemplate *template.Template
+	kTemplate *template.Template
 )
 
 type Handler struct {
-  Cdc categoriesdb.Getter
-  Store findb.EntriesRunner
-  PageSize int
-  Links bool
-  LN *common.LeftNav
-  Global *common.Global
+	Cdc      categoriesdb.Getter
+	Store    findb.EntriesRunner
+	PageSize int
+	Links    bool
+	LN       *common.LeftNav
+	Global   *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-  r.ParseForm()
-  selecter := common.SelectSearch()
-  leftnav := h.LN.Generate(w, r, selecter)
-  if leftnav == "" {
-    return
-  }
-  pageNo, _ := strconv.Atoi(r.Form.Get(kPageParam))
-  cds, _ := h.Cdc.Get(nil)
-  var filt fin.CatFilter
-  cat, caterr := fin.CatFromString(r.Form.Get("cat"))
-  if caterr == nil {
-    filt = cds.Filter(cat, r.Form.Get("top") == "")
-  }
-  var amtFilter filters.AmountFilter
-  errorMessage := ""
-  rangeStr := r.Form.Get("range")
-  if rangeStr != "" {
-    amtFilter = compileRangeFilter(rangeStr)
-    if amtFilter == nil {
-      errorMessage = "Range must be of form 12.34 to 56.78."
-    }
-  }
-  var filter goconsume.FilterFunc
-  if amtFilter != nil || filt != nil || r.Form.Get("name") != "" || r.Form.Get("desc") != "" {
-    filter = filters.CompileAdvanceSearchSpec(&filters.AdvanceSearchSpec{
-        CF: filt,
-        AF: amtFilter,
-        Name: r.Form.Get("name"),
-        Desc: r.Form.Get("desc")})
-  }
-  var totaler *aggregators.Totaler
-  var entries []fin.Entry
-  var morePages bool
-  epb := goconsume.Page(pageNo, h.PageSize, &entries, &morePages)
-  var cr goconsume.Consumer = epb
-  sdPtr, sderr := getDateRelaxed(r.Form, "sd")
-  edPtr, ederr := getDateRelaxed(r.Form, "ed")
-  if filter != nil {
-    if sdPtr != nil {
-      totaler = &aggregators.Totaler{}
-      cr = goconsume.Compose(
-          consumers.FromCatPaymentAggregator(totaler),
-          cr)
-    }
-    cr = goconsume.Filter(cr, filter)
-  }
-  var elo *findb.EntryListOptions
-  if sderr != nil || ederr != nil {
-    errorMessage = "Start and end date must be in yyyyMMdd format."
-  } else {
-    elo = &findb.EntryListOptions{Start: sdPtr, End: edPtr}
-  }
-  err := h.Store.Entries(nil, elo, cr)
-  epb.Finalize()
-  if err != nil {
-    http_util.ReportError(w, "Error reading database.", err)
-    return
-  }
-  var listEntriesUrl *url.URL
-  if h.Links {
-    listEntriesUrl = r.URL
-  }
-  http_util.WriteTemplate(
-      w,
-      kTemplate,
-      &view{
-          http_util.PageBreadCrumb{
-              URL: r.URL,
-              PageNoParam: kPageParam,
-              PageNo: pageNo,
-              End: !morePages},
-          entries,
-          totaler,
-          http_util.Values{r.Form},
-          common.CatDisplayer{cds},
-          common.CatLinker{ListEntries: listEntriesUrl, Cds: cds},
-          common.EntryLinker{URL: r.URL, Sel: selecter},
-          errorMessage,
-          leftnav,
-          h.Global})
+	r.ParseForm()
+	selecter := common.SelectSearch()
+	leftnav := h.LN.Generate(w, r, selecter)
+	if leftnav == "" {
+		return
+	}
+	pageNo, _ := strconv.Atoi(r.Form.Get(kPageParam))
+	cds, _ := h.Cdc.Get(nil)
+	var filt fin.CatFilter
+	cat, caterr := fin.CatFromString(r.Form.Get("cat"))
+	if caterr == nil {
+		filt = cds.Filter(cat, r.Form.Get("top") == "")
+	}
+	var amtFilter filters.AmountFilter
+	errorMessage := ""
+	rangeStr := r.Form.Get("range")
+	if rangeStr != "" {
+		amtFilter = compileRangeFilter(rangeStr)
+		if amtFilter == nil {
+			errorMessage = "Range must be of form 12.34 to 56.78."
+		}
+	}
+	var filter goconsume.FilterFunc
+	if amtFilter != nil || filt != nil || r.Form.Get("name") != "" || r.Form.Get("desc") != "" {
+		filter = filters.CompileAdvanceSearchSpec(&filters.AdvanceSearchSpec{
+			CF:   filt,
+			AF:   amtFilter,
+			Name: r.Form.Get("name"),
+			Desc: r.Form.Get("desc")})
+	}
+	var totaler *aggregators.Totaler
+	var entries []fin.Entry
+	var morePages bool
+	epb := goconsume.Page(pageNo, h.PageSize, &entries, &morePages)
+	var cr goconsume.Consumer = epb
+	sdPtr, sderr := getDateRelaxed(r.Form, "sd")
+	edPtr, ederr := getDateRelaxed(r.Form, "ed")
+	if filter != nil {
+		if sdPtr != nil {
+			totaler = &aggregators.Totaler{}
+			cr = goconsume.Compose(
+				consumers.FromCatPaymentAggregator(totaler),
+				cr)
+		}
+		cr = goconsume.Filter(cr, filter)
+	}
+	var elo *findb.EntryListOptions
+	if sderr != nil || ederr != nil {
+		errorMessage = "Start and end date must be in yyyyMMdd format."
+	} else {
+		elo = &findb.EntryListOptions{Start: sdPtr, End: edPtr}
+	}
+	err := h.Store.Entries(nil, elo, cr)
+	epb.Finalize()
+	if err != nil {
+		http_util.ReportError(w, "Error reading database.", err)
+		return
+	}
+	var listEntriesUrl *url.URL
+	if h.Links {
+		listEntriesUrl = r.URL
+	}
+	http_util.WriteTemplate(
+		w,
+		kTemplate,
+		&view{
+			http_util.PageBreadCrumb{
+				URL:         r.URL,
+				PageNoParam: kPageParam,
+				PageNo:      pageNo,
+				End:         !morePages},
+			entries,
+			totaler,
+			http_util.Values{r.Form},
+			common.CatDisplayer{cds},
+			common.CatLinker{ListEntries: listEntriesUrl, Cds: cds},
+			common.EntryLinker{URL: r.URL, Sel: selecter},
+			errorMessage,
+			leftnav,
+			h.Global})
 }
 
 type view struct {
-  http_util.PageBreadCrumb
-  Entries []fin.Entry
-  *aggregators.Totaler
-  http_util.Values
-  common.CatDisplayer
-  common.CatLinker
-  common.EntryLinker
-  ErrorMessage string
-  LeftNav template.HTML
-  Global *common.Global
+	http_util.PageBreadCrumb
+	Entries []fin.Entry
+	*aggregators.Totaler
+	http_util.Values
+	common.CatDisplayer
+	common.CatLinker
+	common.EntryLinker
+	ErrorMessage string
+	LeftNav      template.HTML
+	Global       *common.Global
 }
 
 func getDateRelaxed(values url.Values, key string) (*time.Time, error) {
-  s := strings.TrimSpace(values.Get(key))
-  if s == "" {
-    return nil, nil
-  }
-  t, e := time.Parse(date_util.YMDFormat, common.NormalizeYMDStr(s))
-  if e != nil {
-    return nil, e
-  }
-  return &t, nil
+	s := strings.TrimSpace(values.Get(key))
+	if s == "" {
+		return nil, nil
+	}
+	t, e := time.Parse(date_util.YMDFormat, common.NormalizeYMDStr(s))
+	if e != nil {
+		return nil, e
+	}
+	return &t, nil
 }
 
 func compileRangeFilter(expr string) filters.AmountFilter {
-  expr = strings.ToLower(expr)
-  parts := strings.SplitN(expr, "to", 2)
-  for i := range parts {
-    parts[i] = strings.TrimSpace(parts[i])
-  }
-  if len(parts) == 1 {
-    neededAmount, err := fin.ParseUSD(parts[0])
-    if err != nil {
-      return nil
-    }
-    return func(amt int64) bool {
-      return amt == -neededAmount
-    }
-  }
-  if parts[0] != "" && parts[1] != "" {
-    lower, err := fin.ParseUSD(parts[0])
-    if err != nil {
-      return nil
-    }
-    upper, err := fin.ParseUSD(parts[1])
-    if err != nil {
-      return nil
-    }
-    return func(amt int64) bool {
-      return amt >= -upper && amt <= -lower
-    }
-  }
-  if parts[0] != "" {
-    lower, err := fin.ParseUSD(parts[0])
-    if err != nil {
-      return nil
-    }
-    return func(amt int64) bool {
-      return amt <= -lower
-    }
-  }
-  if parts[1] != "" {
-    upper, err := fin.ParseUSD(parts[1])
-    if err != nil {
-      return nil
-    }
-    return func(amt int64) bool {
-      return amt >= -upper
-    }
-  }
-  return nil
+	expr = strings.ToLower(expr)
+	parts := strings.SplitN(expr, "to", 2)
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	if len(parts) == 1 {
+		neededAmount, err := fin.ParseUSD(parts[0])
+		if err != nil {
+			return nil
+		}
+		return func(amt int64) bool {
+			return amt == -neededAmount
+		}
+	}
+	if parts[0] != "" && parts[1] != "" {
+		lower, err := fin.ParseUSD(parts[0])
+		if err != nil {
+			return nil
+		}
+		upper, err := fin.ParseUSD(parts[1])
+		if err != nil {
+			return nil
+		}
+		return func(amt int64) bool {
+			return amt >= -upper && amt <= -lower
+		}
+	}
+	if parts[0] != "" {
+		lower, err := fin.ParseUSD(parts[0])
+		if err != nil {
+			return nil
+		}
+		return func(amt int64) bool {
+			return amt <= -lower
+		}
+	}
+	if parts[1] != "" {
+		upper, err := fin.ParseUSD(parts[1])
+		if err != nil {
+			return nil
+		}
+		return func(amt int64) bool {
+			return amt >= -upper
+		}
+	}
+	return nil
 }
 
 func init() {
-  kTemplate = common.NewTemplate("list", kTemplateSpec)
+	kTemplate = common.NewTemplate("list", kTemplateSpec)
 }

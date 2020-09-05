@@ -2,10 +2,10 @@
 package autoimport
 
 import (
-  "github.com/keep94/appcommon/db"
-  "github.com/keep94/finance/fin"
-  "io"
-  "time"
+	"github.com/keep94/appcommon/db"
+	"github.com/keep94/finance/fin"
+	"io"
+	"time"
 )
 
 // Loader wraps the Load method which reads a batch of transactions from a bank.
@@ -23,29 +23,29 @@ import (
 // are read into the batch.  Load returns the read transactions as a Batch
 // instance.
 type Loader interface {
-  Load(
-      accountId int64,
-      bankAccountId string,
-      r io.Reader,
-      startDate time.Time) (Batch, error)
+	Load(
+		accountId int64,
+		bankAccountId string,
+		r io.Reader,
+		startDate time.Time) (Batch, error)
 }
 
 // Batch represents a group of transactions read from a file using a Loader
 // instance. Batch instances are immutable.
 type Batch interface {
-  // Entries returns the entries in the batch. The returned entries are
-  // copies that the caller can safely modify.
-  Entries() []*fin.Entry
+	// Entries returns the entries in the batch. The returned entries are
+	// copies that the caller can safely modify.
+	Entries() []*fin.Entry
 
-  // SkippProcessed returns a new Batch like this one that contains only
-  // entries that have not already been processed. t is the database
-  // transaction; nil means run in a separate transaction.
-  SkipProcessed(t db.Transaction) (Batch, error)
+	// SkippProcessed returns a new Batch like this one that contains only
+	// entries that have not already been processed. t is the database
+	// transaction; nil means run in a separate transaction.
+	SkipProcessed(t db.Transaction) (Batch, error)
 
-  // MarkProcessed marks all the entries in this Batch as processed. t is the
-  // database transaction; nil means run in a separate transaction.
-  MarkProcessed(t db.Transaction) error
+	// MarkProcessed marks all the entries in this Batch as processed. t is the
+	// database transaction; nil means run in a separate transaction.
+	MarkProcessed(t db.Transaction) error
 
-  // Len returns the number of entries in this batch.
-  Len() int
+	// Len returns the number of entries in this batch.
+	Len() int
 }

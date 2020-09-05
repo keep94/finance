@@ -1,42 +1,42 @@
 package trends
 
 import (
-  "errors"
-  "github.com/keep94/appcommon/date_util"
-  "github.com/keep94/appcommon/google_graph"
-  "github.com/keep94/appcommon/http_util"
-  "github.com/keep94/finance/apps/ledger/common"
-  "github.com/keep94/finance/fin"
-  "github.com/keep94/finance/fin/aggregators"
-  "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/categories/categoriesdb"
-  "github.com/keep94/finance/fin/consumers"
-  "github.com/keep94/finance/fin/filters"
-  "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/goconsume"
-  "html/template"
-  "net/http"
-  "net/url"
-  "time"
+	"errors"
+	"github.com/keep94/appcommon/date_util"
+	"github.com/keep94/appcommon/google_graph"
+	"github.com/keep94/appcommon/http_util"
+	"github.com/keep94/finance/apps/ledger/common"
+	"github.com/keep94/finance/fin"
+	"github.com/keep94/finance/fin/aggregators"
+	"github.com/keep94/finance/fin/categories"
+	"github.com/keep94/finance/fin/categories/categoriesdb"
+	"github.com/keep94/finance/fin/consumers"
+	"github.com/keep94/finance/fin/filters"
+	"github.com/keep94/finance/fin/findb"
+	"github.com/keep94/goconsume"
+	"html/template"
+	"net/http"
+	"net/url"
+	"time"
 )
 
 const (
-  kPageParam = "pageNo"
-  kMaxPointsInGraph = 24
+	kPageParam        = "pageNo"
+	kMaxPointsInGraph = 24
 )
 
 var (
-  kExpenseBarGraph = &google_graph.BarGraph{
-      Palette: []string {"660000"},
-      Scale: 2}
-  kIncomeBarGraph = &google_graph.BarGraph{
-      Palette: []string {"006600", "660000"},
-      Scale: 2}
-  kExpenseIncomeBarGraph = kIncomeBarGraph
+	kExpenseBarGraph = &google_graph.BarGraph{
+		Palette: []string{"660000"},
+		Scale:   2}
+	kIncomeBarGraph = &google_graph.BarGraph{
+		Palette: []string{"006600", "660000"},
+		Scale:   2}
+	kExpenseIncomeBarGraph = kIncomeBarGraph
 )
 
 var (
-  kTemplateSpec = `
+	kTemplateSpec = `
 {{define "MultiGraph"}}
 <table>
   <tr>
@@ -178,357 +178,357 @@ var (
 )
 
 var (
-  kTemplate *template.Template
+	kTemplate *template.Template
 )
 
 type Handler struct {
-  Cdc categoriesdb.Getter
-  Store findb.EntriesRunner
-  LN *common.LeftNav
-  Global *common.Global
+	Cdc    categoriesdb.Getter
+	Store  findb.EntriesRunner
+	LN     *common.LeftNav
+	Global *common.Global
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-  r.ParseForm()
-  leftnav := h.LN.Generate(w, r, common.SelectTrends())
-  if leftnav == "" {
-    return
-  }
-  cds, _ := h.Cdc.Get(nil)
-  cat, caterr := fin.CatFromString(r.Form.Get("cat"))
-  start, end, err := getDateRange(r)
-  if err != nil {
-    v := &view{
-        Values: http_util.Values{r.Form},
-        CatDisplayer: common.CatDisplayer{cds},
-        Error: errors.New("Dates must be in yyyyMMdd format."),
-        CatDetails: cds.DetailsByIds(fin.CatSet{fin.Expense: true, fin.Income: true}),
-        LeftNav: leftnav,
-        Global: h.Global,
-    }
-    http_util.WriteTemplate(w, kTemplate, v)
-    return
-  }
-  if caterr == nil {
-    points, graphUrl, cats, err := h.singleCat(cds, r.URL, cat, r.Form.Get("top") != "", start, end, r.Form.Get("freq") == "Y")
-    if err != nil {
-      http_util.ReportError(w, "Error reading database.", err)
-      return
-    }
-    v := &view{
-        Values: http_util.Values{r.Form},
-        CatDisplayer: common.CatDisplayer{cds},
-        Items: points,
-        CatDetails: cds.DetailsByIds(cats),
-        GraphUrl: graphUrl,
-        FormatStr: formatStringLong(r.Form.Get("freq") == "Y"),
-        LeftNav: leftnav,
-        Global: h.Global,
-    }
-    http_util.WriteTemplate(w, kTemplate, v)
-  } else {
-    points, graphUrl, cats, err := h.allCats(cds, r.URL, start, end, r.Form.Get("freq") == "Y")
-    if err != nil {
-      http_util.ReportError(w, "Error reading database.", err)
-      return
-    }
-    v := &view{
-        Values: http_util.Values{r.Form},
-        CatDisplayer: common.CatDisplayer{cds},
-        MultiItems: points,
-        CatDetails: cds.DetailsByIds(cats),
-        GraphUrl: graphUrl,
-        FormatStr: formatStringLong(r.Form.Get("freq") == "Y"),
-        LeftNav: leftnav,
-        Global: h.Global,
-    }
-    http_util.WriteTemplate(w, kTemplate, v)
-  }
+	r.ParseForm()
+	leftnav := h.LN.Generate(w, r, common.SelectTrends())
+	if leftnav == "" {
+		return
+	}
+	cds, _ := h.Cdc.Get(nil)
+	cat, caterr := fin.CatFromString(r.Form.Get("cat"))
+	start, end, err := getDateRange(r)
+	if err != nil {
+		v := &view{
+			Values:       http_util.Values{r.Form},
+			CatDisplayer: common.CatDisplayer{cds},
+			Error:        errors.New("Dates must be in yyyyMMdd format."),
+			CatDetails:   cds.DetailsByIds(fin.CatSet{fin.Expense: true, fin.Income: true}),
+			LeftNav:      leftnav,
+			Global:       h.Global,
+		}
+		http_util.WriteTemplate(w, kTemplate, v)
+		return
+	}
+	if caterr == nil {
+		points, graphUrl, cats, err := h.singleCat(cds, r.URL, cat, r.Form.Get("top") != "", start, end, r.Form.Get("freq") == "Y")
+		if err != nil {
+			http_util.ReportError(w, "Error reading database.", err)
+			return
+		}
+		v := &view{
+			Values:       http_util.Values{r.Form},
+			CatDisplayer: common.CatDisplayer{cds},
+			Items:        points,
+			CatDetails:   cds.DetailsByIds(cats),
+			GraphUrl:     graphUrl,
+			FormatStr:    formatStringLong(r.Form.Get("freq") == "Y"),
+			LeftNav:      leftnav,
+			Global:       h.Global,
+		}
+		http_util.WriteTemplate(w, kTemplate, v)
+	} else {
+		points, graphUrl, cats, err := h.allCats(cds, r.URL, start, end, r.Form.Get("freq") == "Y")
+		if err != nil {
+			http_util.ReportError(w, "Error reading database.", err)
+			return
+		}
+		v := &view{
+			Values:       http_util.Values{r.Form},
+			CatDisplayer: common.CatDisplayer{cds},
+			MultiItems:   points,
+			CatDetails:   cds.DetailsByIds(cats),
+			GraphUrl:     graphUrl,
+			FormatStr:    formatStringLong(r.Form.Get("freq") == "Y"),
+			LeftNav:      leftnav,
+			Global:       h.Global,
+		}
+		http_util.WriteTemplate(w, kTemplate, v)
+	}
 }
 
 func (h *Handler) singleCat(
-    cds categories.CatDetailStore,
-    thisUrl *url.URL,
-    cat fin.Cat,
-    topOnly bool,
-    start, end time.Time,
-    isYearly bool) (points []*dataPoint, graphUrl *url.URL, cats fin.CatSet, err error) {
-  // Only to see what the child categories are
-  ct := make(fin.CatTotals)
-  totals := createByPeriodTotaler(start, end, isYearly)
-  cr := goconsume.Filter(
-      goconsume.Compose(
-          consumers.FromCatPaymentAggregator(ct),
-          consumers.FromEntryAggregator(totals)),
-      filters.CompileAdvanceSearchSpec(
-          &filters.AdvanceSearchSpec{CF: cds.Filter(cat, !topOnly)}))
-  elo := findb.EntryListOptions{
-      Start: &start,
-      End: &end}
-  err = h.Store.Entries(nil, &elo, cr)
-  if err != nil {
-    return
-  }
-  isIncome := cat.Type == fin.IncomeCat
-  var listUrl *url.URL
-  if topOnly {
-    listUrl = http_util.NewUrl(
-        "/fin/list",
-        "cat", cat.String(),
-        "top", "on")
-  } else {
-    listUrl = http_util.NewUrl(
-        "/fin/list",
-        "cat", cat.String())
-  }
-  var reportUrl *url.URL
-  if isYearly {
-    reportUrl = http_util.WithParams(thisUrl, "freq", "M")
-  }
-  builder := dataSetBuilder{
-      ListUrl: listUrl,
-      ReportUrl: reportUrl,
-      Totals: totals,
-      IsIncome: isIncome}
-  points = builder.Build()
-  if len(points) <= kMaxPointsInGraph {
-    g := &graphable{
-        Data: points,
-        Fmt: formatString(isYearly)}
-    if isIncome {
-      graphUrl = kIncomeBarGraph.GraphURL(g)
-    } else {
-      graphUrl = kExpenseBarGraph.GraphURL(g)
-    }
-  }
-  _, children := cds.RollUp(ct)
-  cats = fin.CatSet{fin.Expense:true , fin.Income:true}
-  cats.AddSet(children[cat])
-  return
+	cds categories.CatDetailStore,
+	thisUrl *url.URL,
+	cat fin.Cat,
+	topOnly bool,
+	start, end time.Time,
+	isYearly bool) (points []*dataPoint, graphUrl *url.URL, cats fin.CatSet, err error) {
+	// Only to see what the child categories are
+	ct := make(fin.CatTotals)
+	totals := createByPeriodTotaler(start, end, isYearly)
+	cr := goconsume.Filter(
+		goconsume.Compose(
+			consumers.FromCatPaymentAggregator(ct),
+			consumers.FromEntryAggregator(totals)),
+		filters.CompileAdvanceSearchSpec(
+			&filters.AdvanceSearchSpec{CF: cds.Filter(cat, !topOnly)}))
+	elo := findb.EntryListOptions{
+		Start: &start,
+		End:   &end}
+	err = h.Store.Entries(nil, &elo, cr)
+	if err != nil {
+		return
+	}
+	isIncome := cat.Type == fin.IncomeCat
+	var listUrl *url.URL
+	if topOnly {
+		listUrl = http_util.NewUrl(
+			"/fin/list",
+			"cat", cat.String(),
+			"top", "on")
+	} else {
+		listUrl = http_util.NewUrl(
+			"/fin/list",
+			"cat", cat.String())
+	}
+	var reportUrl *url.URL
+	if isYearly {
+		reportUrl = http_util.WithParams(thisUrl, "freq", "M")
+	}
+	builder := dataSetBuilder{
+		ListUrl:   listUrl,
+		ReportUrl: reportUrl,
+		Totals:    totals,
+		IsIncome:  isIncome}
+	points = builder.Build()
+	if len(points) <= kMaxPointsInGraph {
+		g := &graphable{
+			Data: points,
+			Fmt:  formatString(isYearly)}
+		if isIncome {
+			graphUrl = kIncomeBarGraph.GraphURL(g)
+		} else {
+			graphUrl = kExpenseBarGraph.GraphURL(g)
+		}
+	}
+	_, children := cds.RollUp(ct)
+	cats = fin.CatSet{fin.Expense: true, fin.Income: true}
+	cats.AddSet(children[cat])
+	return
 }
 
 func (h *Handler) allCats(
-    cds categories.CatDetailStore,
-    thisUrl *url.URL,
-    start, end time.Time,
-    isYearly bool) (points []*multiDataPoint, graphUrl *url.URL, cats fin.CatSet, err error) {
-  // Only to see what the child categories are
-  ct := make(fin.CatTotals)
-  expenseTotals := createByPeriodTotaler(start, end, isYearly)
-  incomeTotals := createByPeriodTotaler(start, end, isYearly)
-  cr := goconsume.ComposeWithCopy(
-      []goconsume.Consumer{
-          consumers.FromCatPaymentAggregator(ct),
-          goconsume.Filter(
-              consumers.FromEntryAggregator(expenseTotals),
-              filters.CompileAdvanceSearchSpec(
-                  &filters.AdvanceSearchSpec{
-                      CF: cds.Filter(fin.Expense, true)})),
-          goconsume.Filter(
-              consumers.FromEntryAggregator(incomeTotals),
-              filters.CompileAdvanceSearchSpec(
-                  &filters.AdvanceSearchSpec{
-                      CF: cds.Filter(fin.Income, true)})),
-      },
-      (*fin.Entry)(nil))
-  elo := findb.EntryListOptions{
-      Start: &start,
-      End: &end}
-  err = h.Store.Entries(nil, &elo, cr)
-  if err != nil {
-    return
-  }
-  listUrl := http_util.NewUrl("/fin/list")
-  var reportUrl *url.URL
-  if isYearly {
-    reportUrl = http_util.WithParams(thisUrl, "freq", "M")
-  }
-  builder := multiDataSetBuilder{
-      ListUrl: listUrl,
-      ReportUrl: reportUrl,
-      ExpenseTotals: expenseTotals,
-      IncomeTotals: incomeTotals}
-  points = builder.Build()
-  if len(points) <= kMaxPointsInGraph {
-    g := &multiGraphable{
-        Data: points,
-        Fmt: formatString(isYearly)}
-    graphUrl = kExpenseIncomeBarGraph.GraphURL2D(g)
-  }
-  _, children := cds.RollUp(ct)
-  cats = fin.CatSet{fin.Expense: true, fin.Income: true}
-  cats.AddSet(children[fin.Expense]).AddSet(children[fin.Income])
-  return
+	cds categories.CatDetailStore,
+	thisUrl *url.URL,
+	start, end time.Time,
+	isYearly bool) (points []*multiDataPoint, graphUrl *url.URL, cats fin.CatSet, err error) {
+	// Only to see what the child categories are
+	ct := make(fin.CatTotals)
+	expenseTotals := createByPeriodTotaler(start, end, isYearly)
+	incomeTotals := createByPeriodTotaler(start, end, isYearly)
+	cr := goconsume.ComposeWithCopy(
+		[]goconsume.Consumer{
+			consumers.FromCatPaymentAggregator(ct),
+			goconsume.Filter(
+				consumers.FromEntryAggregator(expenseTotals),
+				filters.CompileAdvanceSearchSpec(
+					&filters.AdvanceSearchSpec{
+						CF: cds.Filter(fin.Expense, true)})),
+			goconsume.Filter(
+				consumers.FromEntryAggregator(incomeTotals),
+				filters.CompileAdvanceSearchSpec(
+					&filters.AdvanceSearchSpec{
+						CF: cds.Filter(fin.Income, true)})),
+		},
+		(*fin.Entry)(nil))
+	elo := findb.EntryListOptions{
+		Start: &start,
+		End:   &end}
+	err = h.Store.Entries(nil, &elo, cr)
+	if err != nil {
+		return
+	}
+	listUrl := http_util.NewUrl("/fin/list")
+	var reportUrl *url.URL
+	if isYearly {
+		reportUrl = http_util.WithParams(thisUrl, "freq", "M")
+	}
+	builder := multiDataSetBuilder{
+		ListUrl:       listUrl,
+		ReportUrl:     reportUrl,
+		ExpenseTotals: expenseTotals,
+		IncomeTotals:  incomeTotals}
+	points = builder.Build()
+	if len(points) <= kMaxPointsInGraph {
+		g := &multiGraphable{
+			Data: points,
+			Fmt:  formatString(isYearly)}
+		graphUrl = kExpenseIncomeBarGraph.GraphURL2D(g)
+	}
+	_, children := cds.RollUp(ct)
+	cats = fin.CatSet{fin.Expense: true, fin.Income: true}
+	cats.AddSet(children[fin.Expense]).AddSet(children[fin.Income])
+	return
 }
 
 func formatString(isYearly bool) string {
-  if isYearly {
-    return "06"
-  }
-  return "01"
+	if isYearly {
+		return "06"
+	}
+	return "01"
 }
 
 func formatStringLong(isYearly bool) string {
-  if isYearly {
-    return "2006"
-  }
-  return "01/2006"
+	if isYearly {
+		return "2006"
+	}
+	return "01/2006"
 }
 
 func createByPeriodTotaler(start, end time.Time, isYearly bool) *aggregators.ByPeriodTotaler {
-  if isYearly {
-    return aggregators.NewByPeriodTotaler(start, end, aggregators.Yearly())
-  }
-  return aggregators.NewByPeriodTotaler(start, end, aggregators.Monthly())
+	if isYearly {
+		return aggregators.NewByPeriodTotaler(start, end, aggregators.Yearly())
+	}
+	return aggregators.NewByPeriodTotaler(start, end, aggregators.Monthly())
 }
 
 func getDateRange(r *http.Request) (start, end time.Time, err error) {
-  start, err = time.Parse(
-      date_util.YMDFormat, common.NormalizeYMDStr(r.Form.Get("sd")))
-  if err != nil {
-    return
-  }
-  end, err = time.Parse(
-      date_util.YMDFormat, common.NormalizeYMDStr(r.Form.Get("ed")))
-  if err != nil {
-    return
-  }
-  return
+	start, err = time.Parse(
+		date_util.YMDFormat, common.NormalizeYMDStr(r.Form.Get("sd")))
+	if err != nil {
+		return
+	}
+	end, err = time.Parse(
+		date_util.YMDFormat, common.NormalizeYMDStr(r.Form.Get("ed")))
+	if err != nil {
+		return
+	}
+	return
 }
 
 type dataPoint struct {
-  Date time.Time
-  Value int64
-  Url *url.URL
-  ReportUrl *url.URL
+	Date      time.Time
+	Value     int64
+	Url       *url.URL
+	ReportUrl *url.URL
 }
 
 type graphable struct {
-  Data []*dataPoint
-  Fmt string
+	Data []*dataPoint
+	Fmt  string
 }
 
-func (g *graphable) Len() int { return len(g.Data) }
+func (g *graphable) Len() int           { return len(g.Data) }
 func (g *graphable) Label(i int) string { return g.Data[i].Date.Format(g.Fmt) }
-func (g *graphable) Value(i int) int64 { return g.Data[i].Value }
-func (g *graphable) Title() string { return "" }
+func (g *graphable) Value(i int) int64  { return g.Data[i].Value }
+func (g *graphable) Title() string      { return "" }
 
 type multiDataPoint struct {
-  Date time.Time
-  IncomeValue int64
-  ExpenseValue int64
-  Url *url.URL
-  ReportUrl *url.URL
+	Date         time.Time
+	IncomeValue  int64
+	ExpenseValue int64
+	Url          *url.URL
+	ReportUrl    *url.URL
 }
 
 type multiGraphable struct {
-  Data []*multiDataPoint
-  Fmt string
+	Data []*multiDataPoint
+	Fmt  string
 }
 
-func (g *multiGraphable) XLen() int { return len(g.Data) }
-func (g *multiGraphable) YLen() int { return 2 }
+func (g *multiGraphable) XLen() int           { return len(g.Data) }
+func (g *multiGraphable) YLen() int           { return 2 }
 func (g *multiGraphable) XLabel(i int) string { return g.Data[i].Date.Format(g.Fmt) }
 
-func (g *multiGraphable) Value(x, y int) int64 { 
-  if y == 0 {
-    return g.Data[x].IncomeValue
-  }
-  return g.Data[x].ExpenseValue
+func (g *multiGraphable) Value(x, y int) int64 {
+	if y == 0 {
+		return g.Data[x].IncomeValue
+	}
+	return g.Data[x].ExpenseValue
 }
 
 func (g *multiGraphable) YLabel(y int) string {
-  if y == 0 {
-     return "Income"
-  }
-  return "Expense"
+	if y == 0 {
+		return "Income"
+	}
+	return "Expense"
 }
-  
+
 type view struct {
-  http_util.Values
-  common.CatDisplayer
-  Items []*dataPoint
-  MultiItems []*multiDataPoint
-  GraphUrl *url.URL
-  CatDetails []categories.CatDetail
-  Error error
-  FormatStr string
-  LeftNav template.HTML
-  Global *common.Global
+	http_util.Values
+	common.CatDisplayer
+	Items      []*dataPoint
+	MultiItems []*multiDataPoint
+	GraphUrl   *url.URL
+	CatDetails []categories.CatDetail
+	Error      error
+	FormatStr  string
+	LeftNav    template.HTML
+	Global     *common.Global
 }
 
 type dataSetBuilder struct {
-  ListUrl *url.URL
-  ReportUrl *url.URL
-  Totals *aggregators.ByPeriodTotaler
-  IsIncome bool
+	ListUrl   *url.URL
+	ReportUrl *url.URL
+	Totals    *aggregators.ByPeriodTotaler
+	IsIncome  bool
 }
-  
+
 func (b *dataSetBuilder) Build() (result []*dataPoint) {
-  iter := b.Totals.Iterator()
-  var pt aggregators.PeriodTotal
-  for iter.Next(&pt) {
-    if !b.IsIncome {
-      pt.Total = -pt.Total
-    }  
-    var reportUrl *url.URL
-    sd := pt.Start.Format(date_util.YMDFormat)
-    ed := pt.End.Format(date_util.YMDFormat)
-    if b.ReportUrl != nil {
-      reportUrl = http_util.WithParams(b.ReportUrl,
-          "sd", sd,
-          "ed", ed)
-    }
-    item := &dataPoint{
-        Date: pt.PeriodStart,
-        Value: pt.Total,
-        ReportUrl: reportUrl,
-        Url: http_util.WithParams(
-            b.ListUrl,
-            "sd", sd,
-            "ed", ed)}
-    result = append(result, item)
-  }
-  return result
+	iter := b.Totals.Iterator()
+	var pt aggregators.PeriodTotal
+	for iter.Next(&pt) {
+		if !b.IsIncome {
+			pt.Total = -pt.Total
+		}
+		var reportUrl *url.URL
+		sd := pt.Start.Format(date_util.YMDFormat)
+		ed := pt.End.Format(date_util.YMDFormat)
+		if b.ReportUrl != nil {
+			reportUrl = http_util.WithParams(b.ReportUrl,
+				"sd", sd,
+				"ed", ed)
+		}
+		item := &dataPoint{
+			Date:      pt.PeriodStart,
+			Value:     pt.Total,
+			ReportUrl: reportUrl,
+			Url: http_util.WithParams(
+				b.ListUrl,
+				"sd", sd,
+				"ed", ed)}
+		result = append(result, item)
+	}
+	return result
 }
 
 type multiDataSetBuilder struct {
-  ListUrl *url.URL
-  ReportUrl *url.URL
-  ExpenseTotals *aggregators.ByPeriodTotaler
-  IncomeTotals *aggregators.ByPeriodTotaler
+	ListUrl       *url.URL
+	ReportUrl     *url.URL
+	ExpenseTotals *aggregators.ByPeriodTotaler
+	IncomeTotals  *aggregators.ByPeriodTotaler
 }
-  
+
 func (b *multiDataSetBuilder) Build() (result []*multiDataPoint) {
-  iter := b.IncomeTotals.Iterator()
-  expenseIter := b.ExpenseTotals.Iterator()
-  var pt, ept aggregators.PeriodTotal
-  for iter.Next(&pt) {
-    if !expenseIter.Next(&ept) {
-      panic("expense totals shorter than income totals.")
-    }
-    var reportUrl *url.URL
-    sd := pt.Start.Format(date_util.YMDFormat)
-    ed := pt.End.Format(date_util.YMDFormat)
-    if b.ReportUrl != nil {
-      reportUrl = http_util.WithParams(b.ReportUrl,
-          "sd", sd,
-          "ed", ed)
-    }
-    item := &multiDataPoint{
-        Date: pt.PeriodStart,
-        IncomeValue: pt.Total,
-        ExpenseValue: -ept.Total,
-        ReportUrl: reportUrl,
-        Url: http_util.WithParams(
-            b.ListUrl,
-            "sd", sd,
-            "ed", ed)}
-    result = append(result, item)
-  }
-  return result
+	iter := b.IncomeTotals.Iterator()
+	expenseIter := b.ExpenseTotals.Iterator()
+	var pt, ept aggregators.PeriodTotal
+	for iter.Next(&pt) {
+		if !expenseIter.Next(&ept) {
+			panic("expense totals shorter than income totals.")
+		}
+		var reportUrl *url.URL
+		sd := pt.Start.Format(date_util.YMDFormat)
+		ed := pt.End.Format(date_util.YMDFormat)
+		if b.ReportUrl != nil {
+			reportUrl = http_util.WithParams(b.ReportUrl,
+				"sd", sd,
+				"ed", ed)
+		}
+		item := &multiDataPoint{
+			Date:         pt.PeriodStart,
+			IncomeValue:  pt.Total,
+			ExpenseValue: -ept.Total,
+			ReportUrl:    reportUrl,
+			Url: http_util.WithParams(
+				b.ListUrl,
+				"sd", sd,
+				"ed", ed)}
+		result = append(result, item)
+	}
+	return result
 }
 
 func init() {
-  kTemplate = common.NewTemplate("trends", kTemplateSpec)
+	kTemplate = common.NewTemplate("trends", kTemplateSpec)
 }

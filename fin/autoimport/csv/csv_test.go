@@ -1,15 +1,15 @@
 package csv_test
 
 import (
-  "github.com/keep94/appcommon/date_util"
-  "github.com/keep94/appcommon/db"
-  "github.com/keep94/finance/fin"
-  "github.com/keep94/finance/fin/autoimport"
-  "github.com/keep94/finance/fin/autoimport/csv"
-  "github.com/keep94/finance/fin/autoimport/qfx/qfxdb"
-  "reflect"
-  "strings"
-  "testing"
+	"github.com/keep94/appcommon/date_util"
+	"github.com/keep94/appcommon/db"
+	"github.com/keep94/finance/fin"
+	"github.com/keep94/finance/fin/autoimport"
+	"github.com/keep94/finance/fin/autoimport/csv"
+	"github.com/keep94/finance/fin/autoimport/qfx/qfxdb"
+	"reflect"
+	"strings"
+	"testing"
 )
 
 const kPaypalCsv = `
@@ -33,104 +33,104 @@ Date, Time, Time Zone, Name, Type, Status, Amount, Receipt ID, Balance,
 `
 
 func TestReadBadCsvFile(t *testing.T) {
-  r := strings.NewReader("A bad file\nNo CSV things in here\n")
-  var loader autoimport.Loader
-  loader = csv.CsvLoader{make(storeType)}
-  _, err := loader.Load(3, "", r, date_util.YMD(2012, 11, 14))
-  if err == nil {
-    t.Error("Expected error")
-  }
+	r := strings.NewReader("A bad file\nNo CSV things in here\n")
+	var loader autoimport.Loader
+	loader = csv.CsvLoader{make(storeType)}
+	_, err := loader.Load(3, "", r, date_util.YMD(2012, 11, 14))
+	if err == nil {
+		t.Error("Expected error")
+	}
 }
 
 func TestReadCsvWithEntryMissingName(t *testing.T) {
-  var loader autoimport.Loader
-  loader = csv.CsvLoader{make(storeType)}
-  r := strings.NewReader(kMissingNameCsv)
-  _, err := loader.Load(3, "", r, date_util.YMD(2015, 9, 3))
-  if err != nil {
-    t.Error("Expected no error")
-  }
-  r = strings.NewReader(kMissingNameCsv)
-  _, err = loader.Load(3, "", r, date_util.YMD(2015, 9, 2))
-  if err == nil {
-    t.Error("Expected error reading entry with missing name")
-  }
+	var loader autoimport.Loader
+	loader = csv.CsvLoader{make(storeType)}
+	r := strings.NewReader(kMissingNameCsv)
+	_, err := loader.Load(3, "", r, date_util.YMD(2015, 9, 3))
+	if err != nil {
+		t.Error("Expected no error")
+	}
+	r = strings.NewReader(kMissingNameCsv)
+	_, err = loader.Load(3, "", r, date_util.YMD(2015, 9, 2))
+	if err == nil {
+		t.Error("Expected error reading entry with missing name")
+	}
 }
 
 func TestReadPaypalCsv(t *testing.T) {
-  r := strings.NewReader(kPaypalCsv)
-  var loader autoimport.Loader
-  loader = csv.CsvLoader{make(storeType)}
-  batch, err := loader.Load(3, "", r, date_util.YMD(2015, 9, 3))
-  if err != nil {
-    t.Errorf("Got error %v", err)
-    return
-  }
-  entries := batch.Entries()
-  expectedEntries := []*fin.Entry {
-      {
-          Date: date_util.YMD(2015, 12, 6),
-          Name: "TrackR, Inc",
-          CatPayment: fin.NewCatPayment(fin.Expense, 8700, true, 3)},
-      {
-          Date: date_util.YMD(2015, 9, 5),
-          Name: "Starbucks Coffee Company",
-          CatPayment: fin.NewCatPayment(fin.Expense, 4810, true, 3)},
-      {
-          Date: date_util.YMD(2015, 9, 3),
-          Name: "Disney Online",
-          CatPayment: fin.NewCatPayment(fin.Expense, 4641, true, 3)}}
-  if !reflect.DeepEqual(expectedEntries, entries) {
-    t.Errorf("Expected %v, got %v", expectedEntries, entries)
-  }
+	r := strings.NewReader(kPaypalCsv)
+	var loader autoimport.Loader
+	loader = csv.CsvLoader{make(storeType)}
+	batch, err := loader.Load(3, "", r, date_util.YMD(2015, 9, 3))
+	if err != nil {
+		t.Errorf("Got error %v", err)
+		return
+	}
+	entries := batch.Entries()
+	expectedEntries := []*fin.Entry{
+		{
+			Date:       date_util.YMD(2015, 12, 6),
+			Name:       "TrackR, Inc",
+			CatPayment: fin.NewCatPayment(fin.Expense, 8700, true, 3)},
+		{
+			Date:       date_util.YMD(2015, 9, 5),
+			Name:       "Starbucks Coffee Company",
+			CatPayment: fin.NewCatPayment(fin.Expense, 4810, true, 3)},
+		{
+			Date:       date_util.YMD(2015, 9, 3),
+			Name:       "Disney Online",
+			CatPayment: fin.NewCatPayment(fin.Expense, 4641, true, 3)}}
+	if !reflect.DeepEqual(expectedEntries, entries) {
+		t.Errorf("Expected %v, got %v", expectedEntries, entries)
+	}
 }
 
 func TestMarkProcessed(t *testing.T) {
-  r := strings.NewReader(kPaypalCsv)
-  loader := csv.CsvLoader{make(storeType)}
-  batch, err := loader.Load(3, "", r, date_util.YMD(2015, 9, 3))
-  if err != nil {
-    t.Errorf("Got error %v", err)
-    return
-  }
-  batch.MarkProcessed(nil)
-  r = strings.NewReader(kPaypalCsv)
-  newBatch, err := loader.Load(3, "", r, date_util.YMD(2015, 9, 2))
-  if err != nil {
-    t.Errorf("Got error %v", err)
-    return
-  }
-  newBatch, _ = newBatch.SkipProcessed(nil)
-  if output := len(newBatch.Entries()); output != 1 {
-    t.Errorf("Expected 1, got %v", output)
-  }
+	r := strings.NewReader(kPaypalCsv)
+	loader := csv.CsvLoader{make(storeType)}
+	batch, err := loader.Load(3, "", r, date_util.YMD(2015, 9, 3))
+	if err != nil {
+		t.Errorf("Got error %v", err)
+		return
+	}
+	batch.MarkProcessed(nil)
+	r = strings.NewReader(kPaypalCsv)
+	newBatch, err := loader.Load(3, "", r, date_util.YMD(2015, 9, 2))
+	if err != nil {
+		t.Errorf("Got error %v", err)
+		return
+	}
+	newBatch, _ = newBatch.SkipProcessed(nil)
+	if output := len(newBatch.Entries()); output != 1 {
+		t.Errorf("Expected 1, got %v", output)
+	}
 }
 
 type storeType map[int64]map[string]bool
 
 func (s storeType) Add(t db.Transaction, accountId int64, fitIds qfxdb.FitIdSet) error {
-  if s[accountId] == nil {
-    s[accountId] = make(map[string]bool)
-  }
-  for fitId, ok := range fitIds {
-    if ok {
-      s[accountId][fitId] = true
-    }
-  }
-  return nil
+	if s[accountId] == nil {
+		s[accountId] = make(map[string]bool)
+	}
+	for fitId, ok := range fitIds {
+		if ok {
+			s[accountId][fitId] = true
+		}
+	}
+	return nil
 }
 
 func (s storeType) Find(t db.Transaction, accountId int64, fitIds qfxdb.FitIdSet) (qfxdb.FitIdSet, error) {
-  var result qfxdb.FitIdSet
-  for fitId, ok := range fitIds {
-    if ok {
-      if s[accountId][fitId] {
-        if result == nil {
-          result = make(qfxdb.FitIdSet)
-        }
-        result[fitId] = true
-      }
-    }
-  }
-  return result, nil
+	var result qfxdb.FitIdSet
+	for fitId, ok := range fitIds {
+		if ok {
+			if s[accountId][fitId] {
+				if result == nil {
+					result = make(qfxdb.FitIdSet)
+				}
+				result[fitId] = true
+			}
+		}
+	}
+	return result, nil
 }

@@ -1,7 +1,7 @@
 package static
 
 var (
-  kThemeCss = `
+	kThemeCss = `
 .positive {color:#006600;}
 .negative {color:#660000;}
 .lineitem {background-color:#CCCCCC}

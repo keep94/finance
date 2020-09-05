@@ -20,35 +20,35 @@ package match
 // will always be a slice of buffer (buffer grows as necessary). Returned
 // array is only valid until the next call to this method.
 func Match(matchTo, matchFrom []int, maxDiff int, buffer *[]int) []int {
-  params := matchParams{
-      MatchTo: matchTo, MatchFrom: matchFrom, MaxDiff: maxDiff}
-  if len(matchTo) > len(*buffer) {
-    *buffer = make([]int, len(matchTo))
-  }
-  result := (*buffer)[:len(matchTo)]
-  bottomIdx := -1
-  for toIdx := range matchTo {
-    matchIdx := params.FindMatch(toIdx)
-    if matchIdx == -1 {
-      result[toIdx] = matchIdx
-      continue
-    }
-    if params.CanAddMatch(result[:toIdx], bottomIdx, matchIdx) {
-      result[toIdx] = matchIdx
-    } else {
-      result[toIdx] = -1
-      bottomIdx = matchIdx
-    }
-  }
-  return result
+	params := matchParams{
+		MatchTo: matchTo, MatchFrom: matchFrom, MaxDiff: maxDiff}
+	if len(matchTo) > len(*buffer) {
+		*buffer = make([]int, len(matchTo))
+	}
+	result := (*buffer)[:len(matchTo)]
+	bottomIdx := -1
+	for toIdx := range matchTo {
+		matchIdx := params.FindMatch(toIdx)
+		if matchIdx == -1 {
+			result[toIdx] = matchIdx
+			continue
+		}
+		if params.CanAddMatch(result[:toIdx], bottomIdx, matchIdx) {
+			result[toIdx] = matchIdx
+		} else {
+			result[toIdx] = -1
+			bottomIdx = matchIdx
+		}
+	}
+	return result
 }
 
 // matchParams represents the parameters passed to the match function
 type matchParams struct {
-  MatchTo []int
-  MatchFrom []int
-  MaxDiff int
-  fromIdx int
+	MatchTo   []int
+	MatchFrom []int
+	MaxDiff   int
+	fromIdx   int
 }
 
 // Given an index into p.MatchTo, FindMatch returns the index of the element
@@ -58,15 +58,15 @@ type matchParams struct {
 // is no such matching element in p.MatchFrom. FindMatch must be called with
 // ever increasing toIdx values for the lifetime of this instance.
 func (p *matchParams) FindMatch(toIdx int) int {
-  matchFromLen := len(p.MatchFrom)
-  for p.fromIdx < matchFromLen && p.MatchTo[toIdx] >= p.MatchFrom[p.fromIdx] {
-    p.fromIdx++
-  }
-  result := p.fromIdx - 1
-  if result < 0 || !p.inRange(toIdx, result) {
-    return -1
-  }
-  return result
+	matchFromLen := len(p.MatchFrom)
+	for p.fromIdx < matchFromLen && p.MatchTo[toIdx] >= p.MatchFrom[p.fromIdx] {
+		p.fromIdx++
+	}
+	result := p.fromIdx - 1
+	if result < 0 || !p.inRange(toIdx, result) {
+		return -1
+	}
+	return result
 }
 
 // CanAddMatch returns true if idxToAdd can be added to the end of
@@ -78,29 +78,28 @@ func (p *matchParams) FindMatch(toIdx int) int {
 // false if idxToAdd == bottom. -1 <= bottom <= idxToAdd. idxToAdd >= 0 and
 // idxToAdd cannot be smaller than last element in matchesSoFar.
 func (p *matchParams) CanAddMatch(
-    matchesSoFar []int, bottom, idxToAdd int) bool {
-  if (bottom == idxToAdd) {
-    return false
-  }
-  top := idxToAdd
-  matchesSoFarLen := len(matchesSoFar)
-  idx := matchesSoFarLen - 1
-  for ; idx >= 0 && matchesSoFar[idx] == top; idx-- {
-    top = matchesSoFar[idx] - 1
-    if top == bottom || !p.inRange(idx, top) {
-      return false
-    }
-  }
-  for idx2 := idx + 1; idx2 < matchesSoFarLen; idx2++ {
-    matchesSoFar[idx2]--
-  }
-  return true
+	matchesSoFar []int, bottom, idxToAdd int) bool {
+	if bottom == idxToAdd {
+		return false
+	}
+	top := idxToAdd
+	matchesSoFarLen := len(matchesSoFar)
+	idx := matchesSoFarLen - 1
+	for ; idx >= 0 && matchesSoFar[idx] == top; idx-- {
+		top = matchesSoFar[idx] - 1
+		if top == bottom || !p.inRange(idx, top) {
+			return false
+		}
+	}
+	for idx2 := idx + 1; idx2 < matchesSoFarLen; idx2++ {
+		matchesSoFar[idx2]--
+	}
+	return true
 }
 
 func (p *matchParams) inRange(toIdx, fromIdx int) bool {
-  if p.MaxDiff <= 0 {
-    return true
-  }
-  return p.MatchTo[toIdx] - p.MatchFrom[fromIdx] < p.MaxDiff 
+	if p.MaxDiff <= 0 {
+		return true
+	}
+	return p.MatchTo[toIdx]-p.MatchFrom[fromIdx] < p.MaxDiff
 }
-

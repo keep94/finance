@@ -1,25 +1,25 @@
 package unreconciled
 
 import (
-  "fmt"
-  "github.com/keep94/appcommon/db"
-  "github.com/keep94/appcommon/http_util"
-  "github.com/keep94/finance/apps/ledger/common"
-  "github.com/keep94/finance/fin"
-  "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/goconsume"
-  "html/template"
-  "net/http"
-  "strconv"
+	"fmt"
+	"github.com/keep94/appcommon/db"
+	"github.com/keep94/appcommon/http_util"
+	"github.com/keep94/finance/apps/ledger/common"
+	"github.com/keep94/finance/fin"
+	"github.com/keep94/finance/fin/categories"
+	"github.com/keep94/finance/fin/findb"
+	"github.com/keep94/goconsume"
+	"html/template"
+	"net/http"
+	"strconv"
 )
 
 const (
-  kUnreconciled = "unreconciled"
+	kUnreconciled = "unreconciled"
 )
 
 var (
-  kTemplateSpec = `
+	kTemplateSpec = `
 <html>
 <head>
   <title>{{.Global.Title}}</title>
@@ -79,102 +79,101 @@ No unreconciled entries.
 )
 
 var (
-  kTemplate *template.Template
+	kTemplate *template.Template
 )
 
 type Store interface {
-  findb.UnreconciledEntriesRunner
-  findb.DoEntryChangesRunner
+	findb.UnreconciledEntriesRunner
+	findb.DoEntryChangesRunner
 }
 
 type Handler struct {
-  Doer db.Doer
-  PageSize int
-  LN *common.LeftNav
-  Global *common.Global
+	Doer     db.Doer
+	PageSize int
+	LN       *common.LeftNav
+	Global   *common.Global
 }
 
-
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-  r.ParseForm()
-  session := common.GetUserSession(r)
-  store := session.Store.(Store)
-  cache := session.Cache
-  acctId, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
-  if r.Method == "POST" {
-    editId, _ := strconv.ParseInt(r.Form.Get("edit_id"), 10, 64)
-    // Alter DB only if xsrf token is valid
-    if common.VerifyXsrfToken(r, kUnreconciled) {
-      reconciler := func(p *fin.Entry) bool {
-        return p.Reconcile(acctId)
-      }
-      ids := r.Form["id"]
-      updates := make(map[int64]fin.EntryUpdater, len(ids))
-      for _, idStr := range ids {
-        id, _ := strconv.ParseInt(idStr, 10, 64)
-        updates[id] = reconciler
-      }
-      store.DoEntryChanges(nil, &findb.EntryChanges{Updates: updates})
-    }
-    if editId != 0 {
-      entryLinker := &common.EntryLinker{
-          URL: r.URL, Sel: common.SelectAccount(acctId)}
-      accountLinker := common.AccountLinker{}
-      if editId == -2 {
-        http_util.Redirect(
-            w,
-            r,
-            accountLinker.AccountLink(acctId).String())
-      }else if editId == -1 {
-        http_util.Redirect(w, r, entryLinker.NewEntryLink(acctId).String())
-      } else {
-        http_util.Redirect(w, r, entryLinker.EntryLink(editId).String())
-      }
-      return
-    }
-  }
-  cds := categories.CatDetailStore{}
-  entries := make([]fin.Entry, 0, h.PageSize)
-  consumer := goconsume.AppendTo(&entries)
-  consumer = goconsume.Slice(consumer, 0, h.PageSize)
-  account := fin.Account{}
-  err := h.Doer.Do(func(t db.Transaction) (err error) {
-    cds, _ = cache.Get(t)
-    return store.UnreconciledEntries(t, acctId, &account, consumer)
-  })
-  if err == findb.NoSuchId {
-    fmt.Fprintln(w, "No such account.")
-    return
-  }
-  if err != nil {
-    http_util.ReportError(w, "Error reading database.", err)
-    return
-  }
-  leftnav := h.LN.Generate(w, r, common.SelectAccount(acctId))
-  if leftnav == "" {
-    return
-  }
-  http_util.WriteTemplate(
-      w,
-      kTemplate,
-      &view{
-          entries,
-          common.CatDisplayer{cds},
-          common.NewXsrfToken(r, kUnreconciled),
-          &account,
-          leftnav,
-          h.Global})
+	r.ParseForm()
+	session := common.GetUserSession(r)
+	store := session.Store.(Store)
+	cache := session.Cache
+	acctId, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
+	if r.Method == "POST" {
+		editId, _ := strconv.ParseInt(r.Form.Get("edit_id"), 10, 64)
+		// Alter DB only if xsrf token is valid
+		if common.VerifyXsrfToken(r, kUnreconciled) {
+			reconciler := func(p *fin.Entry) bool {
+				return p.Reconcile(acctId)
+			}
+			ids := r.Form["id"]
+			updates := make(map[int64]fin.EntryUpdater, len(ids))
+			for _, idStr := range ids {
+				id, _ := strconv.ParseInt(idStr, 10, 64)
+				updates[id] = reconciler
+			}
+			store.DoEntryChanges(nil, &findb.EntryChanges{Updates: updates})
+		}
+		if editId != 0 {
+			entryLinker := &common.EntryLinker{
+				URL: r.URL, Sel: common.SelectAccount(acctId)}
+			accountLinker := common.AccountLinker{}
+			if editId == -2 {
+				http_util.Redirect(
+					w,
+					r,
+					accountLinker.AccountLink(acctId).String())
+			} else if editId == -1 {
+				http_util.Redirect(w, r, entryLinker.NewEntryLink(acctId).String())
+			} else {
+				http_util.Redirect(w, r, entryLinker.EntryLink(editId).String())
+			}
+			return
+		}
+	}
+	cds := categories.CatDetailStore{}
+	entries := make([]fin.Entry, 0, h.PageSize)
+	consumer := goconsume.AppendTo(&entries)
+	consumer = goconsume.Slice(consumer, 0, h.PageSize)
+	account := fin.Account{}
+	err := h.Doer.Do(func(t db.Transaction) (err error) {
+		cds, _ = cache.Get(t)
+		return store.UnreconciledEntries(t, acctId, &account, consumer)
+	})
+	if err == findb.NoSuchId {
+		fmt.Fprintln(w, "No such account.")
+		return
+	}
+	if err != nil {
+		http_util.ReportError(w, "Error reading database.", err)
+		return
+	}
+	leftnav := h.LN.Generate(w, r, common.SelectAccount(acctId))
+	if leftnav == "" {
+		return
+	}
+	http_util.WriteTemplate(
+		w,
+		kTemplate,
+		&view{
+			entries,
+			common.CatDisplayer{cds},
+			common.NewXsrfToken(r, kUnreconciled),
+			&account,
+			leftnav,
+			h.Global})
 }
 
 type view struct {
-  Values []fin.Entry
-  common.CatDisplayer
-  Xsrf string
-  Account *fin.Account
-  LeftNav template.HTML
-  Global *common.Global
+	Values []fin.Entry
+	common.CatDisplayer
+	Xsrf    string
+	Account *fin.Account
+	LeftNav template.HTML
+	Global  *common.Global
 }
 
 func init() {
-  kTemplate = common.NewTemplate("unreconciled", kTemplateSpec)
+	kTemplate = common.NewTemplate("unreconciled", kTemplateSpec)
 }

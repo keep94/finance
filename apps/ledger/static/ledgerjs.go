@@ -1,7 +1,7 @@
 package static
 
 var (
-  kLedgerJs = `
+	kLedgerJs = `
 function populateSelect(select, options) {
   for (var idx = 0; options[idx]; idx += 2) {
     var o = document.createElement("option");

@@ -1,27 +1,27 @@
 package account
 
 import (
-  "fmt"
-  "github.com/keep94/appcommon/db"
-  "github.com/keep94/appcommon/http_util"
-  "github.com/keep94/finance/apps/ledger/common"
-  "github.com/keep94/finance/fin"
-  "github.com/keep94/finance/fin/categories"
-  "github.com/keep94/finance/fin/categories/categoriesdb"
-  "github.com/keep94/finance/fin/findb"
-  "github.com/keep94/goconsume"
-  "html/template"
-  "net/http"
-  "net/url"
-  "strconv"
+	"fmt"
+	"github.com/keep94/appcommon/db"
+	"github.com/keep94/appcommon/http_util"
+	"github.com/keep94/finance/apps/ledger/common"
+	"github.com/keep94/finance/fin"
+	"github.com/keep94/finance/fin/categories"
+	"github.com/keep94/finance/fin/categories/categoriesdb"
+	"github.com/keep94/finance/fin/findb"
+	"github.com/keep94/goconsume"
+	"html/template"
+	"net/http"
+	"net/url"
+	"strconv"
 )
 
 const (
-  kPageParam = "pageNo"
+	kPageParam = "pageNo"
 )
 
 var (
-  kTemplateSpec = `
+	kTemplateSpec = `
 <html>
 <head>
   <title>{{.Global.Title}}</title>
@@ -79,99 +79,98 @@ Page: {{.DisplayPageNo}}
 )
 
 var (
-  kTemplate *template.Template
+	kTemplate *template.Template
 )
 
 var (
-  kListEntriesUrl = http_util.NewUrl("/fin/list")
+	kListEntriesUrl = http_util.NewUrl("/fin/list")
 )
 
 type Handler struct {
-  Doer db.Doer
-  Store findb.EntriesByAccountIdRunner
-  Cdc categoriesdb.Getter
-  PageSize int
-  Links bool
-  LN *common.LeftNav
-  Global *common.Global
+	Doer     db.Doer
+	Store    findb.EntriesByAccountIdRunner
+	Cdc      categoriesdb.Getter
+	PageSize int
+	Links    bool
+	LN       *common.LeftNav
+	Global   *common.Global
 }
 
-
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-  r.ParseForm()
-  id, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
-  selecter := common.SelectAccount(id)
-  leftnav := h.LN.Generate(w, r, selecter)
-  if leftnav == "" {
-    return
-  }
-  pageNo, _ := strconv.Atoi(r.Form.Get(kPageParam))
-  cds := categories.CatDetailStore{}
-  var entryBalances []fin.EntryBalance
-  var morePages bool
-  consumer := goconsume.Page(pageNo, h.PageSize, &entryBalances, &morePages)
-  account := fin.Account{}
-  err := h.Doer.Do(func(t db.Transaction) (err error) {
-    cds, err = h.Cdc.Get(t)
-    if err != nil {
-      return
-    }
-    err = h.Store.EntriesByAccountId(t, id, &account, consumer)
-    if err != nil {
-      return
-    }
-    consumer.Finalize()
-    return
-  })
-  if err == findb.NoSuchId {
-    fmt.Fprintln(w, "No such account.")
-    return
-  }
-  if err != nil {
-    http_util.ReportError(w, "Error reading database.", err)
-    return
-  }
-  var listEntriesUrl *url.URL
-  if h.Links {
-    listEntriesUrl = kListEntriesUrl
-  }
-  http_util.WriteTemplate(
-      w,
-      kTemplate,
-      &view{
-          PageBreadCrumb: http_util.PageBreadCrumb{
-              URL: r.URL,
-              PageNoParam: kPageParam,
-              PageNo: pageNo,
-              End: !morePages,
-          },
-          Values: entryBalances,
-          CatLinker: common.CatLinker{Cds: cds, ListEntries: listEntriesUrl},
-          EntryLinker: common.EntryLinker{URL: r.URL, Sel: selecter},
-          Account: accountWrapper{&account},
-          LeftNav: leftnav,
-          Global: h.Global})
+	r.ParseForm()
+	id, _ := strconv.ParseInt(r.Form.Get("acctId"), 10, 64)
+	selecter := common.SelectAccount(id)
+	leftnav := h.LN.Generate(w, r, selecter)
+	if leftnav == "" {
+		return
+	}
+	pageNo, _ := strconv.Atoi(r.Form.Get(kPageParam))
+	cds := categories.CatDetailStore{}
+	var entryBalances []fin.EntryBalance
+	var morePages bool
+	consumer := goconsume.Page(pageNo, h.PageSize, &entryBalances, &morePages)
+	account := fin.Account{}
+	err := h.Doer.Do(func(t db.Transaction) (err error) {
+		cds, err = h.Cdc.Get(t)
+		if err != nil {
+			return
+		}
+		err = h.Store.EntriesByAccountId(t, id, &account, consumer)
+		if err != nil {
+			return
+		}
+		consumer.Finalize()
+		return
+	})
+	if err == findb.NoSuchId {
+		fmt.Fprintln(w, "No such account.")
+		return
+	}
+	if err != nil {
+		http_util.ReportError(w, "Error reading database.", err)
+		return
+	}
+	var listEntriesUrl *url.URL
+	if h.Links {
+		listEntriesUrl = kListEntriesUrl
+	}
+	http_util.WriteTemplate(
+		w,
+		kTemplate,
+		&view{
+			PageBreadCrumb: http_util.PageBreadCrumb{
+				URL:         r.URL,
+				PageNoParam: kPageParam,
+				PageNo:      pageNo,
+				End:         !morePages,
+			},
+			Values:      entryBalances,
+			CatLinker:   common.CatLinker{Cds: cds, ListEntries: listEntriesUrl},
+			EntryLinker: common.EntryLinker{URL: r.URL, Sel: selecter},
+			Account:     accountWrapper{&account},
+			LeftNav:     leftnav,
+			Global:      h.Global})
 }
 
 type view struct {
-  http_util.PageBreadCrumb
-  common.CatLinker
-  common.AccountLinker
-  common.EntryLinker
-  Account accountWrapper
-  Values []fin.EntryBalance
-  LeftNav template.HTML
-  Global *common.Global
+	http_util.PageBreadCrumb
+	common.CatLinker
+	common.AccountLinker
+	common.EntryLinker
+	Account accountWrapper
+	Values  []fin.EntryBalance
+	LeftNav template.HTML
+	Global  *common.Global
 }
 
 type accountWrapper struct {
-  *fin.Account
+	*fin.Account
 }
 
 func (a accountWrapper) HasUnreconciled() bool {
-  return a.RCount < a.Count
+	return a.RCount < a.Count
 }
 
 func init() {
-  kTemplate = common.NewTemplate("account", kTemplateSpec)
+	kTemplate = common.NewTemplate("account", kTemplateSpec)
 }
