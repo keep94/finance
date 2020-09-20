@@ -2,13 +2,13 @@
 package for_sqlite
 
 import (
-	"github.com/keep94/appcommon/db/sqlite_db"
-	"github.com/keep94/appcommon/db/sqlite_rw"
 	"github.com/keep94/finance/fin"
 	"github.com/keep94/finance/fin/categories"
 	fsqlite "github.com/keep94/finance/fin/findb/for_sqlite"
 	"github.com/keep94/goconsume"
 	"github.com/keep94/gosqlite/sqlite"
+	"github.com/keep94/toolbox/db/sqlite_db"
+	"github.com/keep94/toolbox/db/sqlite_rw"
 )
 
 // CatDetails populates a CatDetailStore object from the database.

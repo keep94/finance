@@ -4,7 +4,7 @@ package qfxdb
 
 import (
 	"errors"
-	"github.com/keep94/appcommon/db"
+	"github.com/keep94/toolbox/db"
 )
 
 var (

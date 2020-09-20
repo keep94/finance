@@ -3,14 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/keep94/appcommon/db"
-	"github.com/keep94/appcommon/db/sqlite_db"
 	"github.com/keep94/finance/fin"
 	for_csqlite "github.com/keep94/finance/fin/categories/categoriesdb/for_sqlite"
 	"github.com/keep94/finance/fin/consumers"
 	"github.com/keep94/finance/fin/findb/for_sqlite"
 	"github.com/keep94/goconsume"
 	"github.com/keep94/gosqlite/sqlite"
+	"github.com/keep94/toolbox/db"
+	"github.com/keep94/toolbox/db/sqlite_db"
 )
 
 var (

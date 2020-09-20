@@ -1,11 +1,11 @@
 package qfx
 
 import (
-	"github.com/keep94/appcommon/date_util"
-	"github.com/keep94/appcommon/db"
 	"github.com/keep94/finance/fin"
 	"github.com/keep94/finance/fin/autoimport"
 	"github.com/keep94/finance/fin/autoimport/qfx/qfxdb"
+	"github.com/keep94/toolbox/date_util"
+	"github.com/keep94/toolbox/db"
 	"reflect"
 	"strings"
 	"testing"

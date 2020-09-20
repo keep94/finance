@@ -4,7 +4,7 @@ package fin
 import (
 	"errors"
 	"fmt"
-	"github.com/keep94/appcommon/passwords"
+	"github.com/keep94/toolbox/passwords"
 	"math"
 	"sort"
 	"strconv"

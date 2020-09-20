@@ -1,10 +1,10 @@
 package for_sqlite
 
 import (
-	"github.com/keep94/appcommon/db/sqlite_db"
 	"github.com/keep94/finance/fin/autoimport/qfx/qfxdb/fixture"
 	"github.com/keep94/finance/fin/findb/sqlite_setup"
 	"github.com/keep94/gosqlite/sqlite"
+	"github.com/keep94/toolbox/db/sqlite_db"
 	"testing"
 )
 

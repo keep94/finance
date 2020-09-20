@@ -6,8 +6,6 @@ github.com/gorilla/securecookie v1.1.1 h1:miw7JPhV+b/lAHSXz4qd/nN9jRiAFV5FwjeKyC
 github.com/gorilla/securecookie v1.1.1/go.mod h1:ra0sb63/xPlUeL+yeDciTfxMRAA+MP+HVt/4epWDjd4=
 github.com/gorilla/sessions v1.2.1 h1:DHd3rPN5lE3Ts3D8rKkQ8x/0kqfeNmBAaiSi+o7FsgI=
 github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/zI+bUmuGM=
-github.com/keep94/appcommon v1.0.0 h1:9eCxdzeo6+mqJY6Viw1mZbD+/k9Z3aOojY6oDuEJojk=
-github.com/keep94/appcommon v1.0.0/go.mod h1:e7FTd+V2d+e+rr2iva0kINfUkVEvqxSBngpCmoKh0BA=
 github.com/keep94/common v1.0.0 h1:hX4MySTB6EidCCxDjcwbCmq56xjQAasTpCEY6eBxlCA=
 github.com/keep94/common v1.0.0/go.mod h1:EntqjOWDwp8pluIIK921uIKHuHXbbv/odR/yz+YZf3M=
 github.com/keep94/goconsume v1.0.0 h1:WNt2IHnuEEAbX8ix+hEiuJ/JCEY72fY02uBt1PWC6JU=
@@ -18,6 +16,8 @@ github.com/keep94/gosqlite v1.0.0 h1:wYAuan8F3qu/nfqllQTOg7fPlRQGXXc3Bw7mfo7JiyY
 github.com/keep94/gosqlite v1.0.0/go.mod h1:hTK4m/OcNf4Lp7HTQFwhGrRn81oSBI+xf5t5zx5r3Pg=
 github.com/keep94/ramstore v1.0.0 h1:/3MQIxxMcX7Ya+hAsL4shM1hmZ9i1MhPRvmunh+8OTw=
 github.com/keep94/ramstore v1.0.0/go.mod h1:H3cnrCdTbpLPSaITT7TD3fv9ymw1cD4aXOgaHXTJ8Po=
+github.com/keep94/toolbox v0.1.0 h1:7ttx8LkXtS7af0f78/HMUAwniikRPzok4BEk/nK1Q0Y=
+github.com/keep94/toolbox v0.1.0/go.mod h1:a2tvB1+OLp+MGHyZGizIEzjMiTryFpp2TuakLTfgreo=
 github.com/keep94/weblogs v1.0.0 h1:YTmyjV2rF4Bhl6rMGkoe4mIdHPNKjAkMMZ670bhkK+Q=
 github.com/keep94/weblogs v1.0.0/go.mod h1:OoIYchSf6QRvBwDLK8+PNbR8EAXwwITG7wIxKH3+AOM=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
@@ -32,6 +32,7 @@ golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3/go.mod h1:t9HGtf8HONx5eT2rtn
 golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20190412213103-97732733099d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/yaml.v2 v2.3.0 h1:clyUAQHOM3G0M3f5vQj7LuJrETvjVot3Z5el9nffUtU=
 gopkg.in/yaml.v2 v2.3.0/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=

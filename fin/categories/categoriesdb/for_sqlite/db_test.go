@@ -1,14 +1,14 @@
 package for_sqlite
 
 import (
-	"github.com/keep94/appcommon/db"
-	"github.com/keep94/appcommon/db/sqlite_db"
 	"github.com/keep94/finance/fin"
 	"github.com/keep94/finance/fin/categories"
 	"github.com/keep94/finance/fin/categories/categoriesdb/fixture"
 	fsqlite "github.com/keep94/finance/fin/findb/for_sqlite"
 	"github.com/keep94/finance/fin/findb/sqlite_setup"
 	"github.com/keep94/gosqlite/sqlite"
+	"github.com/keep94/toolbox/db"
+	"github.com/keep94/toolbox/db/sqlite_db"
 	"testing"
 )
 

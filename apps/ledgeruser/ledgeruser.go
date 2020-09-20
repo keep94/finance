@@ -3,15 +3,15 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/keep94/appcommon/db"
-	"github.com/keep94/appcommon/db/sqlite_db"
-	"github.com/keep94/appcommon/passwords"
 	"github.com/keep94/finance/fin"
 	"github.com/keep94/finance/fin/findb"
 	"github.com/keep94/finance/fin/findb/for_sqlite"
 	"github.com/keep94/finance/fin/findb/sqlite_setup"
 	"github.com/keep94/goconsume"
 	"github.com/keep94/gosqlite/sqlite"
+	"github.com/keep94/toolbox/db"
+	"github.com/keep94/toolbox/db/sqlite_db"
+	"github.com/keep94/toolbox/passwords"
 	"os"
 	"strings"
 )

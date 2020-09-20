@@ -3,9 +3,9 @@ package findb
 
 import (
 	"errors"
-	"github.com/keep94/appcommon/db"
 	"github.com/keep94/finance/fin"
 	"github.com/keep94/goconsume"
+	"github.com/keep94/toolbox/db"
 	"time"
 )
 
