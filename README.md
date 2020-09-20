@@ -11,8 +11,4 @@ No user guide yet.
 
 A command line C compiler is needed for the go get command to work.
 
-## Versioning
-
-This module is an application, not a library. The API in this module can
-change in incompatible ways at any time. Please don't have your projects
-depend on this module.
+**This repo has been deprecated in favor of github.com/keep94/finances**
