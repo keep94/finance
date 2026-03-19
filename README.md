@@ -1,6 +1,8 @@
 finance
 =====
 
+**This repository has been archived and is no longer maintained. It has been replaced with [github.com/keep94/finances](https://github.com/keep94/finances)**
+
 Personal finance application written in go
 
 ## User Guide
